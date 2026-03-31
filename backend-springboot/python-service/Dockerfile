@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y \
     libswscale-dev \
     libswresample-dev \
     libpostproc-dev \
+    gcc \
+    python3-dev \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
