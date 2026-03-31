@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
-@Component
-@Order(Ordered.HIGHEST_PRECEDENCE)
-@WebFilter("/*")
+// @Component
+// @Order(Ordered.HIGHEST_PRECEDENCE)
+// @WebFilter("/*")
 public class CorsFilter implements Filter {
 
     public CorsFilter() {

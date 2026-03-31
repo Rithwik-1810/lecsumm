@@ -34,6 +34,7 @@ com\cvr\cse\lecturesummarizer\security\JwtRequestFilter.class
 com\cvr\cse\lecturesummarizer\controllers\LectureController.class
 com\cvr\cse\lecturesummarizer\security\JwtUtil.class
 com\cvr\cse\lecturesummarizer\models\Task.class
+com\cvr\cse\lecturesummarizer\controllers\RootController.class
 com\cvr\cse\lecturesummarizer\dto\AuthResponse.class
 com\cvr\cse\lecturesummarizer\services\AIService$SummaryDTO.class
 com\cvr\cse\lecturesummarizer\LectureSummarizerApplication.class

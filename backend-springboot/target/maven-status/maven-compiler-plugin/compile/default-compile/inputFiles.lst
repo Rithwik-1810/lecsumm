@@ -27,6 +27,7 @@ C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-spring
 C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-springboot\src\main\java\com\cvr\cse\lecturesummarizer\services\AIService.java
 C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-springboot\src\main\java\com\cvr\cse\lecturesummarizer\repositories\SummaryRepository.java
 C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-springboot\src\main\java\com\cvr\cse\lecturesummarizer\controllers\AuthController.java
+C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-springboot\src\main\java\com\cvr\cse\lecturesummarizer\controllers\RootController.java
 C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-springboot\src\main\java\com\cvr\cse\lecturesummarizer\services\SummaryService.java
 C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-springboot\src\main\java\com\cvr\cse\lecturesummarizer\config\WebConfig.java
 C:\Users\rithw\OneDrive\Desktop\Rithwik CVR\ai-lecture-summarizer\backend-springboot\src\main\java\com\cvr\cse\lecturesummarizer\models\Lecture.java
