@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SparklesIcon, ClockIcon, DocumentTextIcon, CheckCircleIcon, ArrowRightOnRectangleIcon, UserPlusIcon, PlayCircleIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, ClockIcon, DocumentTextIcon, CheckCircleIcon, ArrowRightOnRectangleIcon, UserPlusIcon, PlayCircleIcon, XMarkIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../hooks/useAuth';
+import { useTheme } from '../context/ThemeContext';
 import toast from 'react-hot-toast';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
@@ -276,6 +277,7 @@ const InfiniteMarquee = () => {
 };
 
 const LandingPage = () => {
+  const { theme, toggleTheme } = useTheme();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState('login');
 
@@ -305,6 +307,18 @@ const LandingPage = () => {
           <span className="text-xl font-bold font-display tracking-tight text-slate-900 dark:text-white hidden sm:block">LectureSumm</span>
         </div>
         <div className="flex items-center gap-6 text-sm font-medium">
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 text-slate-800 dark:text-white/90 hover:text-brand-400 dark:hover:text-brand-400 hover:bg-slate-100 dark:bg-white/5 rounded-full transition-all duration-300"
+            title="Toggle Theme"
+          >
+            {theme === 'dark' ? (
+              <SunIcon className="w-5 h-5 text-amber-400" />
+            ) : (
+              <MoonIcon className="w-5 h-5 text-indigo-400" />
+            )}
+          </button>
           <button onClick={() => { setAuthMode('login'); setShowAuthModal(true); }} className="text-slate-800 dark:text-white/90 hover:text-slate-900 dark:text-white transition-colors">Sign In</button>
           <Button onClick={() => { setAuthMode('signup'); setShowAuthModal(true); }} size="sm" className="hidden sm:inline-flex rounded-full text-xs px-6 py-2.5 stripe-gradient-bg shadow-glow-brand">Sign Up <span className="ml-1 opacity-70">→</span></Button>
         </div>
