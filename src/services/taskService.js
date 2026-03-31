@@ -23,5 +23,13 @@ export const taskService = {
   deleteTask: async (id) => {
     const response = await api.delete(`/tasks/${id}`);
     return response.data;
+  },
+  deleteMultipleTasks: async (ids) => {
+    const response = await api.delete('/tasks/bulk', { data: ids });
+    return response.data;
+  },
+  deleteAllTasks: async () => {
+    const response = await api.delete('/tasks/all');
+    return response.data;
   }
 };

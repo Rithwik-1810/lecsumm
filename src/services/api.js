@@ -27,7 +27,11 @@ api.interceptors.response.use(
     return response;
   },
   (error) => {
-    console.error('API Error:', error.response?.status, error.config?.url, error.message);
+    // Suppress console error for expected 404 polling on lecture summaries
+    const isPolling404 = error.response?.status === 404 && error.config?.url?.includes('/summaries/lecture/');
+    if (!isPolling404) {
+      console.error('API Error:', error.response?.status, error.config?.url, error.message);
+    }
     return Promise.reject(error);
   }
 );

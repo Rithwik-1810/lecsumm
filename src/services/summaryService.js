@@ -29,5 +29,17 @@ export const summaryService = {
   deleteSummary: async (id) => {
     const response = await api.delete(`/summaries/${id}`);
     return response.data;
+  },
+
+  // Delete multiple summaries
+  deleteMultipleSummaries: async (ids) => {
+    const response = await api.delete('/summaries/bulk', { data: ids });
+    return response.data;
+  },
+
+  // Delete all summaries for the current user
+  deleteAllSummaries: async () => {
+    const response = await api.delete('/summaries/all');
+    return response.data;
   }
 };

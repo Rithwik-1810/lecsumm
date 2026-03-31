@@ -1,65 +1,75 @@
 import React from 'react';
-import { CloudArrowUpIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { CloudArrowUpIcon, CheckCircleIcon, LockClosedIcon } from '@heroicons/react/24/outline';
+import { motion } from 'framer-motion';
 
 const UploadProgress = ({ progress }) => {
   const isComplete = progress === 100;
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+    <div className="glass-card rounded-3xl border border-surface-200 overflow-hidden shadow-md">
       <div className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+          <div className="flex items-center gap-4">
             <div className={`
-              p-2 rounded-lg transition-all duration-500
-              ${isComplete ? 'bg-green-100' : 'bg-blue-100 animate-pulse'}
+              p-3 rounded-2xl transition-all duration-500 shadow-inner
+              ${isComplete ? 'bg-emerald-100 text-emerald-600' : 'bg-brand-100 text-brand-600 animate-pulse'}
             `}>
               {isComplete ? (
-                <CheckCircleIcon className="h-5 w-5 text-green-600" />
+                <CheckCircleIcon className="h-6 w-6" />
               ) : (
-                <CloudArrowUpIcon className="h-5 w-5 text-blue-600" />
+                <CloudArrowUpIcon className="h-6 w-6" />
               )}
             </div>
             <div>
-              <h4 className="font-semibold text-gray-800">
+              <h4 className="text-lg font-bold font-display text-surface-900 tracking-tight">
                 {isComplete ? 'Upload Complete!' : 'Uploading your lecture...'}
               </h4>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm font-medium text-slate-800 dark:text-white/90">
                 {isComplete 
-                  ? 'Processing will begin shortly' 
-                  : 'Please wait while we upload your file'
+                  ? 'Redirection to summary will begin shortly' 
+                  : 'Please do not close this window'
                 }
               </p>
             </div>
           </div>
-          <span className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-teal-600">
+          <span className="text-3xl font-bold font-display tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-brand-600 to-accent-600">
             {progress}%
           </span>
         </div>
 
-        {/* Progress Bar */}
-        <div className="relative h-3 bg-gray-100 rounded-full overflow-hidden">
-          <div 
+        {/* Progress Bar Container */}
+        <div className="relative h-4 bg-surface-100/80 rounded-full overflow-hidden border border-surface-200 shadow-inner">
+          <motion.div 
             className={`
-              absolute top-0 left-0 h-full rounded-full transition-all duration-500
+              absolute top-0 left-0 h-full rounded-full
               ${isComplete 
-                ? 'bg-gradient-to-r from-green-500 to-teal-500' 
-                : 'bg-gradient-to-r from-blue-500 to-teal-500'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-400' 
+                : 'bg-gradient-to-r from-brand-500 to-accent-500'
               }
             `}
-            style={{ width: `${progress}%` }}
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
           >
-            {/* Shine Effect */}
-            <div className="absolute top-0 right-0 w-20 h-full bg-white opacity-20 transform skew-x-30 animate-shine"></div>
-          </div>
+            {/* Animated Shine Effect */}
+            {!isComplete && (
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
+            )}
+          </motion.div>
         </div>
 
         {/* Status Messages */}
-        <div className="mt-4 text-xs text-gray-400 flex items-center justify-between">
-          <span>🔒 End-to-end encrypted</span>
+        <div className="mt-5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-surface-200/50 pt-4">
+          <span className="text-xs font-bold text-slate-800 dark:text-white/90 flex items-center gap-1.5 uppercase tracking-wider">
+            <LockClosedIcon className="h-3.5 w-3.5" /> End-to-end encrypted
+          </span>
           {!isComplete && (
-            <span className="flex items-center gap-1">
-              <span className="w-1 h-1 bg-blue-500 rounded-full animate-pulse"></span>
-              Uploading...
+            <span className="flex items-center gap-2 text-sm font-bold text-brand-600">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-500"></span>
+              </span>
+              Processing file chunks...
             </span>
           )}
         </div>

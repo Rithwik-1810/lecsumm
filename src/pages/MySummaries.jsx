@@ -1,309 +1,569 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { summaryService } from '../services/summaryService';
 import { useAuth } from '../hooks/useAuth';
 import Loader from '../components/common/Loader';
-import { 
-  BookmarkIcon as BookmarkOutline, 
-  TrashIcon,
-  CalendarIcon,
-  DocumentTextIcon,
-  FunnelIcon,
-  ArrowPathIcon,
-  Squares2X2Icon,
-  ListBulletIcon
+import ConfirmModal from '../components/common/ConfirmModal';
+import {
+  BookmarkIcon as BookmarkOutline, TrashIcon, CalendarIcon,
+  DocumentTextIcon, FunnelIcon, ArrowPathIcon,
+  PlusIcon, SparklesIcon, ChevronRightIcon, CheckIcon,
 } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolid } from '@heroicons/react/24/solid';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format, formatDistanceToNow } from 'date-fns';
+import toast from 'react-hot-toast';
 
 const MySummaries = () => {
+  const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const [summaries, setSummaries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
-  const [viewMode, setViewMode] = useState('grid'); // 'grid' or 'list'
-  const [filter, setFilter] = useState(''); // 'all', 'saved', 'recent'
+  const [filter, setFilter] = useState('');
+  const [expandedId, setExpandedId] = useState(null);
+  const [selectedSummaries, setSelectedSummaries] = useState([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ 
+    isOpen: false, 
+    title: '', 
+    message: '', 
+    onConfirm: () => {},
+    variant: 'danger' 
+  });
 
-  useEffect(() => {
-    fetchSummaries();
-  }, []);
+  useEffect(() => { 
+    fetchSummaries(); 
+    // Reset selection mode when component unmounts or filter changes
+    return () => {
+      setIsSelectionMode(false);
+      setSelectedSummaries([]);
+    };
+  }, [filter]);
 
   const fetchSummaries = async () => {
+    setLoading(true);
     try {
       const data = await summaryService.getSummaries();
-      setSummaries(data);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+      // Fetch associated lectures to get titles
+      try {
+        const lectures = await lectureService.getUserLectures();
+        const lectureMap = lectures.reduce((acc, l) => ({ ...acc, [l.id]: l.title }), {});
+        
+        const enriched = data.map(s => {
+          const derivedTitle = s.topics?.[0] || lectureMap[s.lectureId] || 'Intelligent Analysis';
+          return { ...s, title: derivedTitle };
+        });
+        setSummaries(enriched);
+      } catch {
+        // Fallback if lecture fetch fails
+        setSummaries(data.map(s => ({ ...s, title: s.topics?.[0] || 'AI Generated Summary' })));
+      }
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
-  const toggleSave = async (id, currentSaved) => {
+  const toggleSave = async (id, e) => {
+    e.preventDefault();
+    e.stopPropagation();
     try {
       const updated = await summaryService.toggleSaveSummary(id);
       setSummaries(summaries.map(s => s.id === id ? updated : s));
       await refreshUser();
-    } catch (err) {
-      console.error('Failed to toggle save:', err);
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDelete = async (id, e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Summary',
+      message: 'Are you sure you want to delete this summary? This action cannot be undone.',
+      variant: 'danger',
+      onConfirm: async () => {
+        setDeletingId(id);
+        const toastId = toast.loading('Deleting summary...');
+        try {
+          await summaryService.deleteSummary(id);
+          setSummaries(summaries.filter(s => s.id !== id));
+          toast.success('Summary deleted', { id: toastId });
+          await refreshUser();
+        } catch { 
+          toast.error('Failed to delete.', { id: toastId }); 
+        } finally { 
+          setDeletingId(null); 
+        }
+      }
+    });
+  };
+
+  const toggleSelectSummary = (id) => {
+    setSelectedSummaries(prev => 
+      prev.includes(id) ? prev.filter(sid => sid !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedSummaries.length === displaySummaries.length) {
+      setSelectedSummaries([]);
+    } else {
+      setSelectedSummaries(displaySummaries.map(s => s.id));
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this summary? This action cannot be undone.')) {
-      return;
-    }
-    setDeletingId(id);
-    try {
-      await summaryService.deleteSummary(id);
-      setSummaries(summaries.filter(s => s.id !== id));
-      await refreshUser();
-    } catch (err) {
-      console.error('Failed to delete summary:', err);
-      alert('Failed to delete summary. Please try again.');
-    } finally {
-      setDeletingId(null);
-    }
+  const handleDeleteSelected = () => {
+    if (selectedSummaries.length === 0) return;
+    
+    setConfirmModal({
+      isOpen: true,
+      title: 'Delete Selected',
+      message: `Are you sure you want to delete ${selectedSummaries.length} selected summaries?`,
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsBulkDeleting(true);
+        const toastId = toast.loading(`Deleting ${selectedSummaries.length} summaries...`);
+        try {
+          await summaryService.deleteMultipleSummaries(selectedSummaries);
+          toast.success('Summaries deleted successfully', { id: toastId });
+          setSummaries(summaries.filter(s => !selectedSummaries.includes(s.id)));
+          setSelectedSummaries([]);
+          setIsSelectionMode(false);
+          await refreshUser();
+        } catch (err) {
+          toast.error('Failed to delete summaries', { id: toastId });
+        } finally {
+          setIsBulkDeleting(false);
+        }
+      }
+    });
   };
 
-  const filteredSummaries = () => {
+  const handleDeleteAll = () => {
+    setConfirmModal({
+      isOpen: true,
+      title: 'Clear Library',
+      message: 'WARNING: Are you sure you want to delete ALL your summaries? This action cannot be undone.',
+      variant: 'danger',
+      onConfirm: async () => {
+        setIsBulkDeleting(true);
+        const toastId = toast.loading('Deleting all summaries...');
+        try {
+          await summaryService.deleteAllSummaries();
+          toast.success('All summaries cleared', { id: toastId });
+          setSummaries([]);
+          setSelectedSummaries([]);
+          setIsSelectionMode(false);
+          await refreshUser();
+        } catch (err) {
+          toast.error('Failed to clear summaries', { id: toastId });
+        } finally {
+          setIsBulkDeleting(false);
+        }
+      }
+    });
+  };
+
+  const displaySummaries = (() => {
     if (filter === 'saved') return summaries.filter(s => s.saved);
-    if (filter === 'recent') return summaries.slice().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+    if (filter === 'recent') return [...summaries].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
     return summaries;
-  };
+  })();
 
-  const displaySummaries = filteredSummaries();
+  const cardAccents = [
+    { gradient: 'from-brand-500 to-cyan-400', border: 'hover:border-brand-500/30', shadow: 'group-hover:shadow-[0_0_40px_rgba(6,182,212,0.12)]', icon: 'text-brand-400', iconBg: 'bg-brand-500/10 border-brand-500/20' },
+    { gradient: 'from-violet-500 to-purple-400', border: 'hover:border-violet-500/30', shadow: 'group-hover:shadow-[0_0_40px_rgba(139,92,246,0.12)]', icon: 'text-violet-400', iconBg: 'bg-violet-500/10 border-violet-500/20' },
+    { gradient: 'from-emerald-500 to-teal-400', border: 'hover:border-emerald-500/30', shadow: 'group-hover:shadow-[0_0_40px_rgba(16,185,129,0.12)]', icon: 'text-emerald-400', iconBg: 'bg-emerald-500/10 border-emerald-500/20' },
+    { gradient: 'from-amber-500 to-orange-400', border: 'hover:border-amber-500/30', shadow: 'group-hover:shadow-[0_0_40px_rgba(245,158,11,0.12)]', icon: 'text-amber-400', iconBg: 'bg-amber-500/10 border-amber-500/20' },
+    { gradient: 'from-rose-500 to-pink-400', border: 'hover:border-rose-500/30', shadow: 'group-hover:shadow-[0_0_40px_rgba(244,63,94,0.12)]', icon: 'text-rose-400', iconBg: 'bg-rose-500/10 border-rose-500/20' },
+    { gradient: 'from-blue-500 to-indigo-400', border: 'hover:border-blue-500/30', shadow: 'group-hover:shadow-[0_0_40px_rgba(59,130,246,0.12)]', icon: 'text-blue-400', iconBg: 'bg-blue-500/10 border-blue-500/20' },
+  ];
 
   if (loading) return <Loader />;
   if (error) return (
-    <div className="p-6 text-center">
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg inline-block">
-        <p className="font-medium">Error loading summaries</p>
-        <p className="text-sm">{error}</p>
+    <div className="max-w-6xl mx-auto px-6 py-10">
+      <div className="glass-card-ai text-rose-400 p-6 max-w-md border border-rose-500/20 shadow-glow-brand">
+        <h3 className="font-bold mb-1 uppercase tracking-widest text-xs">Error loading summaries</h3>
+        <p className="text-sm text-rose-300">{error}</p>
+        <button onClick={fetchSummaries} className="mt-4 text-xs font-bold text-rose-400 hover:text-rose-300 transition-colors uppercase tracking-wider">Try again →</button>
       </div>
     </div>
   );
 
+  // Split summaries: first one is "featured", rest are stacked
+  const featured = displaySummaries[0] || null;
+  const rest = displaySummaries.slice(1);
+
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      {/* Header with filters and view toggle */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-teal-500 bg-clip-text text-transparent">
-            My Summaries
-          </h1>
-          <p className="text-gray-500 mt-1">All your generated lecture summaries</p>
-        </div>
+    <div className="w-full">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">
 
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center bg-white rounded-lg shadow-sm border border-gray-200 p-1">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded-md transition ${
-                viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              title="Grid view"
-            >
-              <Squares2X2Icon className="h-5 w-5" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded-md transition ${
-                viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
-              }`}
-              title="List view"
-            >
-              <ListBulletIcon className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div className="relative">
-            <FunnelIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="pl-9 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white shadow-sm"
-            >
-              <option value="">All Summaries</option>
-              <option value="saved">Saved Only</option>
-              <option value="recent">Most Recent</option>
-            </select>
-          </div>
-
-          <button
-            onClick={fetchSummaries}
-            className="p-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition shadow-sm"
-            title="Refresh"
-          >
-            <ArrowPathIcon className="h-5 w-5 text-gray-600" />
-          </button>
-        </div>
-      </div>
-
-      {/* Summaries display */}
-      {displaySummaries.length === 0 ? (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center py-16 bg-white rounded-2xl shadow-sm border border-gray-100"
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col sm:flex-row sm:items-center justify-between gap-4"
         >
-          <div className="w-24 h-24 bg-gradient-to-r from-blue-100 to-teal-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <DocumentTextIcon className="h-12 w-12 text-blue-600" />
+          <div>
+            <p className="text-[11px] font-bold tracking-widest text-brand-400 uppercase mb-2 opacity-80">Your Library</p>
+            <h1 className="text-3xl font-display font-bold text-slate-900 dark:text-white tracking-tight">My Summaries</h1>
+            <p className="text-slate-500 dark:text-white/50 text-sm mt-1.5 font-medium">{summaries.length} summaries generated</p>
           </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No summaries yet</h3>
-          <p className="text-gray-500">Upload a lecture to generate your first summary.</p>
-          <Link
-            to="/upload"
-            className="inline-block mt-4 px-6 py-2 bg-gradient-to-r from-blue-600 to-teal-500 text-white rounded-lg hover:shadow-lg transition"
-          >
-            Upload Lecture
-          </Link>
+          <div className="flex items-center gap-3">
+            {/* Filter pills */}
+            <div className="flex items-center bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-full p-1 gap-0.5">
+              {[['', 'All'], ['saved', 'Saved'], ['recent', 'Recent']].map(([val, label]) => (
+                <button key={val} onClick={() => setFilter(val)}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-300 ${filter === val ? 'bg-brand-500/20 text-brand-300 shadow-[0_0_12px_rgba(6,182,212,0.2)]' : 'text-slate-500 dark:text-white/50 hover:text-slate-700 dark:text-white/80'}`}
+                >{label}</button>
+              ))}
+            </div>
+            <button onClick={fetchSummaries} className="p-2 text-slate-400 dark:text-white/40 hover:text-brand-400 hover:bg-brand-500/10 rounded-xl transition-all border border-transparent hover:border-brand-500/20" title="Refresh">
+              <ArrowPathIcon className="w-4 h-4" />
+            </button>
+
+            {summaries.length > 0 && (
+              <>
+                <button 
+                  onClick={() => {
+                    setIsSelectionMode(!isSelectionMode);
+                    if (isSelectionMode) setSelectedSummaries([]);
+                  }}
+                  className={`px-5 py-2 rounded-full text-xs font-bold transition-all border ${isSelectionMode ? 'bg-slate-200 dark:bg-white/10 border-slate-300 dark:border-white/20 text-slate-800 dark:text-white' : 'bg-brand-500/10 border-brand-500/20 text-brand-400 hover:bg-brand-500/20'}`}
+                >
+                  {isSelectionMode ? 'Cancel' : 'Select'}
+                </button>
+
+                <button 
+                  onClick={handleDeleteAll}
+                  disabled={isBulkDeleting}
+                  className="flex items-center gap-2 px-3 py-2 text-slate-400 dark:text-white/40 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all border border-transparent hover:border-rose-500/20" 
+                  title="Clear Library"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider">Delete All</span>
+                </button>
+              </>
+            )}
+
+            <Link to="/upload"
+              className="inline-flex items-center gap-2 stripe-gradient-bg hover:scale-[1.02] text-slate-900 dark:text-white text-sm font-bold px-5 py-2.5 rounded-full shadow-glow-brand transition-all duration-300 border border-slate-300 dark:border-white/20"
+            >
+              <PlusIcon className="w-4 h-4" /> New
+            </Link>
+          </div>
         </motion.div>
-      ) : (
+
+        {/* Multi-select Actions Bar */}
         <AnimatePresence>
-          {viewMode === 'grid' ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {displaySummaries.map((summary, index) => (
-                <motion.div
-                  key={summary.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <div className="bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100 hover:border-blue-200 group">
-                    <Link to={`/summary/${summary.id}`} className="block">
-                      <div className="p-5">
-                        <div className="flex items-start justify-between mb-3">
-                          <h3 className="text-lg font-semibold text-gray-900 line-clamp-1 group-hover:text-blue-600 transition">
-                            {summary.lectureId ? 'Lecture Summary' : 'Summary'}
-                          </h3>
-                          <span className="text-xs text-gray-400">
-                            {formatDistanceToNow(new Date(summary.createdAt), { addSuffix: true })}
-                          </span>
-                        </div>
-
-                        <p className="text-gray-600 text-sm line-clamp-3 mb-4">
-                          {summary.content}
-                        </p>
-
-                        {summary.topics?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mb-4">
-                            {summary.topics.slice(0, 3).map((topic, i) => (
-                              <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
-                                {topic}
-                              </span>
-                            ))}
-                            {summary.topics.length > 3 && (
-                              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">
-                                +{summary.topics.length - 3}
-                              </span>
-                            )}
-                          </div>
-                        )}
-
-                        <div className="flex items-center justify-between text-xs text-gray-400">
-                          <span className="flex items-center gap-1">
-                            <CalendarIcon className="h-3.5 w-3.5" />
-                            {format(new Date(summary.createdAt), 'MMM d, yyyy')}
-                          </span>
-                          <span>{summary.keyPoints?.length || 0} key points</span>
-                        </div>
-                      </div>
-                    </Link>
-
-                    <div className="flex justify-end items-center gap-2 px-5 py-3 bg-gray-50 border-t border-gray-100">
-                      <button
-                        onClick={() => toggleSave(summary.id, summary.saved)}
-                        disabled={deletingId === summary.id}
-                        className="text-gray-500 hover:text-yellow-500 transition disabled:opacity-50"
-                        title={summary.saved ? 'Remove from saved' : 'Save summary'}
-                      >
-                        {summary.saved ? (
-                          <BookmarkSolid className="h-5 w-5 text-yellow-500" />
-                        ) : (
-                          <BookmarkOutline className="h-5 w-5" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(summary.id)}
-                        disabled={deletingId === summary.id}
-                        className="text-gray-400 hover:text-red-600 transition disabled:opacity-50"
-                        title="Delete summary"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </div>
+          {selectedSummaries.length > 0 && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="flex items-center justify-between px-6 py-3 bg-brand-500/10 border border-brand-500/20 rounded-2xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 bg-brand-500 rounded-md flex items-center justify-center">
+                    <CheckIcon className="w-3.5 h-3.5 text-white stroke-[3px]" />
                   </div>
-                </motion.div>
-              ))}
-            </div>
-          ) : (
-            // List view
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-              {displaySummaries.map((summary, index) => (
-                <motion.div
-                  key={summary.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <div className={`p-4 hover:bg-gradient-to-r hover:from-blue-50 hover:to-teal-50 transition ${
-                    index !== displaySummaries.length - 1 ? 'border-b border-gray-100' : ''
-                  }`}>
-                    <div className="flex flex-col md:flex-row md:items-center gap-4">
-                      <Link to={`/summary/${summary.id}`} className="flex-1 min-w-0">
-                        <h3 className="text-base font-semibold text-gray-900 hover:text-blue-600 transition line-clamp-1">
-                          {summary.lectureId ? 'Lecture Summary' : 'Summary'}
-                        </h3>
-                        <p className="text-sm text-gray-500 line-clamp-1 mt-1">{summary.content}</p>
-                      </Link>
-
-                      {summary.topics?.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {summary.topics.slice(0, 2).map((topic, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded-full">
-                              {topic}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="flex items-center gap-2 text-xs text-gray-400">
-                        <CalendarIcon className="h-3.5 w-3.5" />
-                        <span>{formatDistanceToNow(new Date(summary.createdAt), { addSuffix: true })}</span>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => toggleSave(summary.id, summary.saved)}
-                          disabled={deletingId === summary.id}
-                          className="text-gray-500 hover:text-yellow-500 transition disabled:opacity-50"
-                        >
-                          {summary.saved ? (
-                            <BookmarkSolid className="h-5 w-5 text-yellow-500" />
-                          ) : (
-                            <BookmarkOutline className="h-5 w-5" />
-                          )}
-                        </button>
-                        <button
-                          onClick={() => handleDelete(summary.id)}
-                          disabled={deletingId === summary.id}
-                          className="text-gray-400 hover:text-red-600 transition disabled:opacity-50"
-                        >
-                          <TrashIcon className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-            </div>
+                  <span className="text-sm font-bold text-brand-400">{selectedSummaries.length} summar{selectedSummaries.length !== 1 ? 'ies' : 'y'} selected</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <button 
+                    onClick={() => setSelectedSummaries([])}
+                    className="text-xs font-bold text-slate-500 dark:text-white/40 hover:text-slate-700 dark:hover:text-white transition-colors"
+                  >
+                    Clear Selection
+                  </button>
+                  <button 
+                    onClick={handleDeleteSelected}
+                    disabled={isBulkDeleting}
+                    className="flex items-center gap-2 px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-400 rounded-full text-xs font-bold border border-rose-500/30 transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    <TrashIcon className="w-3.5 h-3.5" />
+                    Delete Selected
+                  </button>
+                </div>
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
-      )}
+
+        {/* Content */}
+        {displaySummaries.length === 0 ? (
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            className="glass-card-ai py-24 flex flex-col items-center justify-center text-center px-6 border border-dashed border-slate-300 dark:border-white/15 relative overflow-hidden"
+          >
+            <div className="absolute inset-0 opacity-30 pointer-events-none">
+              <div className="absolute top-10 left-1/4 w-32 h-32 bg-brand-500/20 rounded-full blur-[60px]" />
+              <div className="absolute bottom-10 right-1/4 w-24 h-24 bg-accent-500/20 rounded-full blur-[50px]" />
+            </div>
+            <div className="w-20 h-20 bg-brand-500/10 border border-brand-500/30 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_20px_rgba(6,182,212,0.15)]">
+              <DocumentTextIcon className="w-10 h-10 text-brand-400" />
+            </div>
+            <h3 className="font-bold text-slate-900 dark:text-white text-xl mb-2 tracking-tight">{filter ? 'No records match filter' : 'No summaries yet'}</h3>
+            <p className="text-slate-500 dark:text-white/50 text-sm max-w-md mb-8 font-medium">
+              {filter ? 'Adjust your filters to see more results.' : 'Upload a lecture to generate your first AI summary.'}
+            </p>
+            {!filter && (
+              <Link to="/upload" className="inline-flex items-center gap-2 stripe-gradient-bg text-slate-900 dark:text-white text-sm font-bold px-6 py-3 rounded-full shadow-glow-brand hover:scale-[1.03] transition-transform border border-slate-300 dark:border-white/20">
+                <PlusIcon className="w-4 h-4" /> Upload Lecture
+              </Link>
+            )}
+          </motion.div>
+        ) : (
+          <div className="space-y-5">
+            {isSelectionMode && (
+              <div className="mb-2 flex items-center pl-16">
+                <button 
+                  onClick={toggleSelectAll}
+                  className="flex items-center gap-2 group cursor-pointer -ml-2"
+                >
+                  <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${selectedSummaries.length === displaySummaries.length && displaySummaries.length > 0 ? 'bg-brand-500 border-brand-500' : 'border-slate-300 dark:border-white/10 dark:bg-white/5 group-hover:border-brand-500/50'}`}>
+                    {selectedSummaries.length === displaySummaries.length && displaySummaries.length > 0 && <CheckIcon className="w-3.5 h-3.5 text-white stroke-[3px]" />}
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-white/30 group-hover:text-brand-400 transition-colors">
+                    {selectedSummaries.length === displaySummaries.length && displaySummaries.length > 0 ? 'Deselect All' : 'Select All Summaries'}
+                  </span>
+                </button>
+              </div>
+            )}
+
+            <div className="space-y-5">
+              {/* ── FEATURED CARD (Hero style, full-width) ── */}
+              {featured && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4 }}
+                  className={`group relative ${isSelectionMode ? 'pl-16' : ''}`}
+                >
+                  {/* Selection Overlay */}
+                  {isSelectionMode && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
+                      <button 
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSelectSummary(featured.id); }}
+                        className={`w-10 h-10 -ml-2 rounded-full flex items-center justify-center transition-all ${selectedSummaries.includes(featured.id) ? 'text-brand-400' : 'text-slate-400 dark:text-white/20 hover:text-brand-400/60'}`}
+                      >
+                        <div className={`w-6 h-6 rounded-md border-2 transition-all flex items-center justify-center ${selectedSummaries.includes(featured.id) ? 'bg-brand-500 border-brand-500 shadow-[0_0_15px_rgba(6,182,212,0.4)]' : 'border-slate-300 dark:border-white/20 dark:bg-white/10'}`}>
+                          {selectedSummaries.includes(featured.id) && <CheckIcon className="w-4 h-4 text-white stroke-[3px]" />}
+                        </div>
+                      </button>
+                    </div>
+                  )}
+
+                  <div 
+                    onClick={() => navigate(`/summary/${featured.id}`)}
+                    className="block cursor-pointer"
+                  >
+                    <div className={`relative bg-slate-50 dark:bg-[#0E0F14] rounded-2xl border border-slate-200 dark:border-white/[0.06] overflow-hidden transition-all duration-500 hover:border-brand-500/30 group-hover:shadow-[0_0_50px_rgba(6,182,212,0.1)] ${selectedSummaries.includes(featured.id) ? 'ring-2 ring-brand-500/50 border-brand-500/50' : ''}`}>
+                      {/* Accent gradient bar */}
+                      <div className="h-1 w-full bg-gradient-to-r from-brand-500 via-accent-500 to-brand-400 opacity-70 group-hover:opacity-100 transition-opacity" />
+                      
+                      {/* Ambient glow */}
+                      <div className="absolute top-0 right-0 w-80 h-80 bg-brand-500/8 rounded-full blur-[100px] pointer-events-none group-hover:bg-brand-500/12 transition-colors duration-700" />
+                      <div className="absolute bottom-0 left-0 w-60 h-60 bg-accent-500/6 rounded-full blur-[80px] pointer-events-none group-hover:bg-accent-500/10 transition-colors duration-700" />
+                      
+                      <div className="relative p-8 sm:p-10 flex flex-col sm:flex-row gap-8">
+                        {/* Left content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-brand-500/15 border border-brand-500/25 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                              <SparklesIcon className="w-5 h-5 text-brand-400" />
+                            </div>
+                            <span className="text-[10px] font-bold text-brand-400 uppercase tracking-widest bg-brand-500/10 px-3 py-1 rounded-full border border-brand-500/20">Latest Summary</span>
+                            <span className="text-[10px] text-slate-400 dark:text-white/40 font-bold uppercase tracking-wider ml-auto">
+                              {formatDistanceToNow(new Date(featured.createdAt), { addSuffix: true })}
+                            </span>
+                          </div>
+                          
+                          <h2 className="text-2xl sm:text-3xl font-display font-bold text-slate-900 dark:text-white tracking-tight mb-3 group-hover:text-brand-400 transition-colors">
+                            {featured.title}
+                          </h2>
+                          <p className="text-base text-slate-700 dark:text-white/60 leading-relaxed font-medium line-clamp-3 group-hover:text-slate-900 dark:text-white transition-colors duration-300 mb-6">
+                            {featured.content}
+                          </p>
+
+                          {featured.topics?.length > 0 && (
+                            <div className="flex flex-wrap gap-2 mb-6">
+                              {featured.topics.map((t, i) => (
+                                <span key={i} className="text-[10px] uppercase font-bold px-3 py-1.5 bg-slate-200/50 dark:bg-white/[0.04] text-slate-500 dark:text-white/50 rounded-lg border border-slate-200 dark:border-white/[0.06] tracking-wider group-hover:text-slate-600 dark:text-white/70 group-hover:bg-slate-200 dark:group-hover:bg-white/[0.06] transition-colors">{t}</span>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-4">
+                            <span className="flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-white/40 font-bold uppercase tracking-wider">
+                              <CalendarIcon className="w-3.5 h-3.5" />{format(new Date(featured.createdAt), 'MMMM d, yyyy')}
+                            </span>
+                            <span className="flex items-center gap-1.5 text-[10px] text-emerald-400/80 font-bold uppercase tracking-wider">
+                              <SparklesIcon className="w-3 h-3" />{featured.keyPoints?.length || 0} Key Points
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Right actions */}
+                        <div className="flex sm:flex-col items-center sm:items-end gap-3 sm:justify-between">
+                          <div className="flex gap-2">
+                            <button onClick={(e) => toggleSave(featured.id, e)} disabled={deletingId === featured.id}
+                              className={`p-2.5 rounded-xl transition-all duration-300 border ${featured.saved ? 'text-amber-400 bg-amber-500/15 border-amber-500/25' : 'text-slate-400 dark:text-white/30 hover:text-amber-400 hover:bg-amber-500/10 border-slate-200 dark:border-white/[0.06] hover:border-amber-500/25'}`}
+                            >
+                              {featured.saved ? <BookmarkSolid className="w-5 h-5" /> : <BookmarkOutline className="w-5 h-5" />}
+                            </button>
+                            <button onClick={(e) => handleDelete(featured.id, e)} disabled={deletingId === featured.id}
+                              className="p-2.5 rounded-xl text-slate-400 dark:text-white/30 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-200 dark:border-white/[0.06] hover:border-rose-500/25 transition-all"
+                            >
+                              <TrashIcon className="w-5 h-5" />
+                            </button>
+                          </div>
+                          <div className="flex items-center gap-2 text-brand-400 text-xs font-bold group-hover:gap-3 transition-all">
+                            Read full summary <ChevronRightIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ── STACKED CARDS (Vertical feed style) ── */}
+              {rest.length > 0 && (
+                <div className="space-y-3">
+                  <AnimatePresence>
+                    {rest.map((s, i) => {
+                      const accent = cardAccents[(i + 1) % cardAccents.length];
+                      const isExpanded = expandedId === s.id;
+
+                      return (
+                        <motion.div
+                          key={s.id}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.3, delay: i * 0.04 }}
+                          className={`relative ${isSelectionMode ? 'pl-16' : ''} group`}
+                        >
+                          {/* Selection Overlay */}
+                          {isSelectionMode && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
+                              <button 
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleSelectSummary(s.id); }}
+                                className={`w-8 h-8 -ml-1 rounded-full flex items-center justify-center transition-all ${selectedSummaries.includes(s.id) ? 'text-brand-400' : 'text-slate-400 dark:text-white/20 hover:text-brand-400/60'}`}
+                              >
+                                <div className={`w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center ${selectedSummaries.includes(s.id) ? 'bg-brand-500 border-brand-500 shadow-[0_0_12px_rgba(6,182,212,0.3)]' : 'border-slate-300 dark:border-white/15 dark:bg-white/5'}`}>
+                                  {selectedSummaries.includes(s.id) && <CheckIcon className="w-3.5 h-3.5 text-white stroke-[3px]" />}
+                                </div>
+                              </button>
+                            </div>
+                          )}
+                          <div 
+                            onClick={() => navigate(`/summary/${s.id}`)}
+                            className={`relative bg-slate-50 dark:bg-[#0E0F14]/80 backdrop-blur-sm rounded-2xl border border-slate-200 dark:border-white/[0.05] overflow-hidden transition-all duration-500 cursor-pointer ${accent.border} ${accent.shadow} ${selectedSummaries.includes(s.id) ? 'ring-2 ring-brand-500/40 border-brand-500/30' : ''}`}
+                          >
+                            {/* Left accent bar */}
+                            <div className={`absolute left-0 top-0 bottom-0 w-[3px] bg-gradient-to-b ${accent.gradient} opacity-40 group-hover:opacity-100 transition-opacity duration-500 rounded-l-2xl`} />
+                            
+                            <div className="flex items-start gap-5 p-5 pl-6">
+                              {/* Icon */}
+                              <div className={`w-11 h-11 ${accent.iconBg} border rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5 group-hover:scale-110 transition-transform duration-300`}>
+                                <DocumentTextIcon className={`w-5 h-5 ${accent.icon}`} />
+                              </div>
+
+                              {/* Content */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-3 mb-2">
+                                  <span className="text-[10px] text-slate-400 dark:text-white/40 font-bold uppercase tracking-wider bg-slate-200/50 dark:bg-white/[0.03] px-2 py-0.5 rounded-md border border-slate-200 dark:border-white/[0.05]">
+                                    {formatDistanceToNow(new Date(s.createdAt), { addSuffix: true })}
+                                  </span>
+                                  {s.saved && (
+                                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                                      <BookmarkSolid className="w-3 h-3" /> Saved
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm font-bold text-slate-800 dark:text-white group-hover:text-brand-400 transition-colors mb-1 tracking-tight">{s.title}</p>
+                                  <p className={`text-xs font-medium text-slate-500 dark:text-white/40 leading-relaxed group-hover:text-slate-600 dark:group-hover:text-white/60 transition-colors duration-300 ${isExpanded ? '' : 'line-clamp-2'} cursor-pointer`}>
+                                    {s.content}
+                                  </p>
+                                </div>
+
+                                {/* Expandable topics */}
+                                <AnimatePresence>
+                                  {isExpanded && s.topics?.length > 0 && (
+                                    <motion.div
+                                      initial={{ opacity: 0, height: 0 }}
+                                      animate={{ opacity: 1, height: 'auto' }}
+                                      exit={{ opacity: 0, height: 0 }}
+                                      className="overflow-hidden"
+                                    >
+                                      <div className="flex flex-wrap gap-2 mt-3">
+                                        {s.topics.map((t, j) => (
+                                          <span key={j} className="text-[9px] uppercase font-bold px-2 py-1 bg-slate-200/50 dark:bg-white/[0.04] text-slate-500 dark:text-white/50 rounded-md border border-slate-200 dark:border-white/[0.05] tracking-wider">{t}</span>
+                                        ))}
+                                      </div>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+
+                                <div className="flex items-center gap-4 mt-3">
+                                  <span className="text-[10px] text-slate-400 dark:text-white/30 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                                    <CalendarIcon className="w-3 h-3" />{format(new Date(s.createdAt), 'MMM d, yyyy')}
+                                  </span>
+                                  <span className="text-[10px] text-emerald-400/60 font-bold uppercase tracking-wider">
+                                    {s.keyPoints?.length || 0} points
+                                  </span>
+                                  <button
+                                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setExpandedId(isExpanded ? null : s.id); }}
+                                    className="text-[10px] text-slate-400 dark:text-white/30 hover:text-brand-400 font-bold uppercase tracking-wider transition-colors ml-auto"
+                                  >
+                                    {isExpanded ? 'Less' : 'More'}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Actions */}
+                              <div className="flex items-center gap-1.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                <button onClick={(e) => toggleSave(s.id, e)} disabled={deletingId === s.id}
+                                  className={`p-2 rounded-lg transition-all duration-200 ${s.saved ? 'text-amber-400' : 'text-slate-400 dark:text-white/30 hover:text-amber-400'}`}
+                                >
+                                  {s.saved ? <BookmarkSolid className="w-4 h-4" /> : <BookmarkOutline className="w-4 h-4" />}
+                                </button>
+                                <button onClick={(e) => handleDelete(s.id, e)} disabled={deletingId === s.id}
+                                  className="p-2 rounded-lg text-slate-400 dark:text-white/30 hover:text-rose-400 transition-all duration-200"
+                                >
+                                  <TrashIcon className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/summary/${s.id}`); }}
+                                  className="p-2 rounded-lg text-slate-400 dark:text-white/30 hover:text-brand-400 transition-all duration-200"
+                                >
+                                  <ChevronRightIcon className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        variant={confirmModal.variant}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ ...confirmModal, isOpen: false })}
+      />
     </div>
   );
 };

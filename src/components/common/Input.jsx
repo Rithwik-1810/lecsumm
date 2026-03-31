@@ -1,4 +1,4 @@
-﻿import React from 'react';
+import React from 'react';
 
 const Input = ({
   type = 'text',
@@ -13,20 +13,20 @@ const Input = ({
   return (
     <div className="w-full">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-bold text-slate-800 dark:text-white/90 mb-2">
           {label}
         </label>
       )}
       <input
         type={type}
-        className={`input-field ${error ? 'border-red-500 focus:ring-red-500' : ''} ${className}`}
+        className={`w-full px-4 py-2.5 bg-slate-100 dark:bg-[#1A1C23] text-slate-900 dark:text-white border border-slate-200 dark:border-white/10 rounded-xl focus:border-brand-500 shadow-glass-inset focus:outline-none focus:ring-1 focus:ring-brand-500 transition-all duration-200 ${error ? 'border-rose-500 focus:border-rose-500 focus:ring-rose-500' : ''} ${className}`}
         placeholder={placeholder}
         value={value}
         onChange={onChange}
         {...props}
       />
       {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <p className="mt-2 text-sm font-medium text-red-500">{error}</p>
       )}
     </div>
   );

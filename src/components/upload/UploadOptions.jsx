@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircleIcon, LanguageIcon, SparklesIcon, CalendarIcon } from '@heroicons/react/24/outline';
+import { motion } from 'framer-motion';
 
 const UploadOptions = ({ options, setOptions }) => {
   const languages = [
@@ -11,25 +12,27 @@ const UploadOptions = ({ options, setOptions }) => {
   ];
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+    <div className="glass-card rounded-3xl border border-surface-200 overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="bg-gradient-to-r from-gray-50 to-white px-6 py-4 border-b border-gray-200">
+      <div className="bg-white/40 backdrop-blur-md px-6 py-5 border-b border-surface-200/50 flex flex-col sm:flex-row sm:items-center gap-4">
         <div className="flex items-center gap-3">
-          <div className="bg-gradient-to-r from-blue-500 to-teal-500 p-2 rounded-lg">
-            <SparklesIcon className="h-5 w-5 text-white" />
+          <div className="bg-gradient-to-br from-brand-400 to-accent-500 p-2.5 rounded-xl shadow-inner">
+            <SparklesIcon className="h-6 w-6 text-slate-900 dark:text-white" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-800">Processing Options</h3>
+          <div>
+            <h3 className="text-xl font-bold font-display text-surface-900 tracking-tight">Processing Options</h3>
+            <p className="text-sm font-medium text-slate-800 dark:text-white/90 mt-0.5">
+              Customize how your lecture will be analyzed
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-gray-500 mt-1 ml-10">
-          Customize how your lecture will be processed
-        </p>
       </div>
 
       {/* Options */}
-      <div className="p-6 space-y-6">
+      <div className="p-6 space-y-4">
         {/* Extract Tasks Option */}
-        <label className="group flex items-start gap-4 cursor-pointer p-4 rounded-xl hover:bg-gradient-to-r hover:from-orange-50 hover:to-transparent transition">
-          <div className="relative">
+        <label className="group flex items-start gap-4 cursor-pointer p-4 rounded-2xl hover:bg-slate-100 dark:bg-white/50 border border-transparent hover:border-surface-200 transition-all duration-300">
+          <div className="relative mt-0.5">
             <input
               type="checkbox"
               checked={options.extractTasks}
@@ -37,32 +40,38 @@ const UploadOptions = ({ options, setOptions }) => {
               className="sr-only"
             />
             <div className={`
-              w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all
+              w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300
               ${options.extractTasks 
-                ? 'bg-gradient-to-r from-orange-500 to-red-500 border-orange-500 scale-110 shadow-md' 
-                : 'border-gray-300 group-hover:border-orange-300'
+                ? 'bg-gradient-to-r from-accent-500 to-brand-500 border-transparent shadow-[0_0_15px_rgba(99,102,241,0.3)]' 
+                : 'border-surface-300 bg-white group-hover:border-accent-400'
               }
             `}>
-              {options.extractTasks && <CheckCircleIcon className="h-4 w-4 text-white" />}
+              <motion.div
+                initial={false}
+                animate={{ scale: options.extractTasks ? 1 : 0, opacity: options.extractTasks ? 1 : 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <CheckCircleIcon className="h-4 w-4 text-slate-900 dark:text-white" />
+              </motion.div>
             </div>
           </div>
           
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <CalendarIcon className="h-4 w-4 text-orange-500" />
-              <span className="font-semibold text-gray-800 group-hover:text-orange-600 transition">
+              <CalendarIcon className="h-5 w-5 text-accent-500" />
+              <span className="font-bold text-surface-900 group-hover:text-accent-600 transition-colors">
                 Extract tasks and deadlines
               </span>
             </div>
-            <p className="text-sm text-gray-500">
-              Automatically identify assignments, quizzes, and due dates from your lecture
+            <p className="text-sm font-medium text-slate-800 dark:text-white/90 leading-relaxed">
+              Automatically identify assignments, quizzes, reading materials and due dates mentioned in this lecture.
             </p>
           </div>
         </label>
 
         {/* Generate Summary Option */}
-        <label className="group flex items-start gap-4 cursor-pointer p-4 rounded-xl hover:bg-gradient-to-r hover:from-blue-50 hover:to-transparent transition">
-          <div className="relative">
+        <label className="group flex items-start gap-4 cursor-pointer p-4 rounded-2xl hover:bg-slate-100 dark:bg-white/50 border border-transparent hover:border-surface-200 transition-all duration-300">
+          <div className="relative mt-0.5">
             <input
               type="checkbox"
               checked={options.generateSummary}
@@ -70,58 +79,67 @@ const UploadOptions = ({ options, setOptions }) => {
               className="sr-only"
             />
             <div className={`
-              w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all
+              w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-300
               ${options.generateSummary 
-                ? 'bg-gradient-to-r from-blue-500 to-teal-500 border-blue-500 scale-110 shadow-md' 
-                : 'border-gray-300 group-hover:border-blue-300'
+                ? 'bg-gradient-to-r from-brand-500 to-accent-400 border-transparent shadow-[0_0_15px_rgba(99,102,241,0.3)]' 
+                : 'border-surface-300 bg-white group-hover:border-brand-400'
               }
             `}>
-              {options.generateSummary && <CheckCircleIcon className="h-4 w-4 text-white" />}
+              <motion.div
+                initial={false}
+                animate={{ scale: options.generateSummary ? 1 : 0, opacity: options.generateSummary ? 1 : 0 }}
+                transition={{ type: "spring", stiffness: 300, damping: 20 }}
+              >
+                <CheckCircleIcon className="h-4 w-4 text-slate-900 dark:text-white" />
+              </motion.div>
             </div>
           </div>
           
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <SparklesIcon className="h-4 w-4 text-blue-500" />
-              <span className="font-semibold text-gray-800 group-hover:text-blue-600 transition">
+              <SparklesIcon className="h-5 w-5 text-brand-500" />
+              <span className="font-bold text-surface-900 group-hover:text-brand-600 transition-colors">
                 Generate lecture summary
               </span>
             </div>
-            <p className="text-sm text-gray-500">
-              Create a concise, easy-to-read summary of the key points from your lecture
+            <p className="text-sm font-medium text-slate-800 dark:text-white/90 leading-relaxed">
+              Create a concise, highly-readable study note containing all key concepts discussed during the lecture.
             </p>
           </div>
         </label>
 
+        {/* Language Selection Spacer */}
+        <div className="w-full h-px bg-surface-200/60 my-2"></div>
+
         {/* Language Selection */}
-        <div className="p-4 bg-gradient-to-r from-gray-50 to-white rounded-xl">
-          <div className="flex items-center gap-2 mb-3">
-            <LanguageIcon className="h-5 w-5 text-purple-500" />
-            <span className="font-semibold text-gray-800">Lecture Language</span>
+        <div className="p-5 bg-white/30 backdrop-blur-sm rounded-2xl border border-surface-200/50">
+          <div className="flex items-center gap-2 mb-4">
+            <LanguageIcon className="h-5 w-5 text-brand-600" />
+            <span className="font-bold text-surface-900">Primary Spoken Language</span>
           </div>
           
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          <div className="flex flex-wrap gap-2.5">
             {languages.map((lang) => (
               <button
                 key={lang.value}
                 onClick={() => setOptions({ ...options, language: lang.value })}
                 className={`
-                  px-3 py-2 rounded-lg border-2 text-sm font-medium transition-all
+                  px-4 py-2 rounded-xl text-sm font-bold tracking-wide transition-all duration-200
                   ${options.language === lang.value
-                    ? 'border-purple-500 bg-purple-50 text-purple-700 shadow-md scale-105'
-                    : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50/50 text-gray-600'
+                    ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-slate-900 dark:text-white shadow-md shadow-brand-500/20 scale-105 border border-transparent'
+                    : 'bg-white text-surface-600 border border-surface-200 hover:border-brand-300 hover:text-brand-600 hover:shadow-sm'
                   }
                 `}
               >
-                <span className="mr-1">{lang.flag}</span>
+                <span className="mr-1.5">{lang.flag}</span>
                 {lang.label.split(' ')[1]}
               </button>
             ))}
           </div>
-          <p className="text-xs text-gray-400 mt-3 flex items-center gap-1">
-            <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-            Select the primary language spoken in your lecture for better transcription accuracy
-          </p>
+          <div className="mt-4 flex items-start gap-2 text-xs font-semibold text-slate-800 dark:text-white/90 bg-surface-50/50 p-3 rounded-lg border border-surface-100">
+            <span className="flex-shrink-0 mt-0.5 w-1.5 h-1.5 bg-brand-400 rounded-full"></span>
+            <p>Selecting the correct language significantly improves transcription accuracy and ensures higher quality summaries.</p>
+          </div>
         </div>
       </div>
     </div>

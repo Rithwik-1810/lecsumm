@@ -1,5 +1,5 @@
-import React from 'react'
-import { NavLink } from 'react-router-dom'
+import React, { useState } from 'react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   HomeIcon, 
@@ -10,8 +10,11 @@ import {
   UserCircleIcon,
   XMarkIcon,
   ChevronLeftIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline'
+import { useAuth } from '../../hooks/useAuth'
+import SignOutModal from '../common/SignOutModal'
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
@@ -34,21 +37,21 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, collapsed, setCollapsed }) => {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex lg:hidden"
           >
-            <div className="fixed inset-0 bg-gray-900/80" onClick={() => setSidebarOpen(false)} />
+            <div className="fixed inset-0 bg-white dark:bg-surface-900/40 backdrop-blur-sm" onClick={() => setSidebarOpen(false)} />
             
             <motion.div
               initial={{ x: -100 }}
               animate={{ x: 0 }}
               exit={{ x: -100 }}
-              className="relative flex w-72 max-w-xs flex-1 flex-col bg-white"
+              className="relative flex w-72 max-w-xs flex-1 flex-col bg-white shadow-2xl"
             >
-              <div className="absolute top-0 right-0 -mr-12 pt-2">
+              <div className="absolute top-0 right-0 -mr-12 pt-4">
                 <button
                   type="button"
-                  className="ml-1 flex h-10 w-10 items-center justify-center rounded-full focus:outline-none"
+                  className="ml-1 flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 dark:bg-surface-800/50 hover:bg-slate-200 dark:bg-surface-800 focus:outline-none backdrop-blur-md transition-colors"
                   onClick={() => setSidebarOpen(false)}
                 >
-                  <XMarkIcon className="h-6 w-6 text-white" />
+                  <XMarkIcon className="h-6 w-6 text-slate-900 dark:text-white" />
                 </button>
               </div>
               
@@ -60,20 +63,20 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, collapsed, setCollapsed }) => {
 
       {/* Desktop sidebar - collapsible */}
       <div 
-        className={`hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block lg:bg-white lg:border-r lg:border-gray-200 transition-all duration-300 ${
+        className={`hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:block bg-white dark:bg-[#0B0C10]/95 backdrop-blur-3xl border-r border-slate-200 dark:border-white/10 shadow-lg dark:shadow-[4px_0_24px_rgba(0,0,0,0.5)] transition-all duration-300 ease-in-out ${
           collapsed ? 'lg:w-20' : 'lg:w-64'
         }`}
       >
-        <div className="flex h-full flex-col bg-white relative">
+        <div className="flex h-full flex-col relative w-full">
           {/* Toggle Button */}
           <button
             onClick={() => setCollapsed(!collapsed)}
-            className="absolute -right-3 top-20 z-50 bg-white border border-gray-200 rounded-full p-1.5 shadow-md hover:shadow-lg transition hover:bg-gray-50"
+            className="absolute -right-3 top-20 z-50 bg-white dark:bg-[#1A1C23] border border-slate-200 dark:border-white/10 rounded-full p-2 shadow-md dark:shadow-glow-brand hover:scale-110 transition-all duration-300 text-slate-800 dark:text-white/90 hover:text-brand-400"
           >
             {collapsed ? (
-              <ChevronRightIcon className="h-4 w-4 text-gray-600" />
+              <ChevronRightIcon className="h-4 w-4" />
             ) : (
-              <ChevronLeftIcon className="h-4 w-4 text-gray-600" />
+              <ChevronLeftIcon className="h-4 w-4" />
             )}
           </button>
           
@@ -85,59 +88,91 @@ const Sidebar = ({ sidebarOpen, setSidebarOpen, collapsed, setCollapsed }) => {
 }
 
 const SidebarContent = ({ collapsed, isMobile }) => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+  const [showSignOut, setShowSignOut] = useState(false);
+
+  const handleLogout = () => {
+    setShowSignOut(false);
+    logout();
+    navigate('/');
+  };
+
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-white py-6">
-      {/* Logo */}
-      <div className={`px-4 pb-6 ${collapsed ? 'text-center' : 'px-6'}`}>
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-2'}`}>
-          <div className="h-10 w-10 bg-gradient-to-r from-blue-600 to-teal-500 rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-white font-bold text-xl">AI</span>
+    <>
+      <div className="flex h-full flex-col overflow-y-auto py-6">
+        {/* Logo */}
+        <div className={`px-4 pb-6 ${collapsed ? 'text-center' : 'px-6'}`}>
+          <div className={`flex items-center ${collapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className="h-8 w-8 stripe-gradient-bg rounded-lg flex items-center justify-center flex-shrink-0 shadow-glow-brand">
+              <span className="text-slate-900 dark:text-white font-bold text-sm font-display">LS</span>
+            </div>
+            {!collapsed && (
+              <span className="text-lg font-bold text-slate-900 dark:text-white font-display tracking-tight">LectureSumm</span>
+            )}
           </div>
-          {!collapsed && (
-            <span className="text-xl font-bold text-gray-900">LectureSumm</span>
+        </div>
+        
+        {/* Navigation */}
+        <nav className="flex-1 space-y-1 px-3">
+          {navigation.map((item) => (
+            <NavLink
+              key={item.name}
+              to={item.href}
+              className={({ isActive }) =>
+                `group flex items-center ${collapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'bg-brand-500/10 text-brand-400 shadow-glass-inset border border-brand-500/20'
+                    : 'text-slate-800 dark:text-white/90 hover:bg-slate-100 dark:bg-white/5 hover:text-slate-900 dark:text-white border border-transparent'
+                }`
+              }
+              title={collapsed ? item.name : ''}
+            >
+              {({ isActive }) => (
+                <>
+                  <div className={`flex items-center justify-center transition-colors ${isActive ? 'text-brand-400' : 'text-slate-800 dark:text-white/90 group-hover:text-brand-300'}`}>
+                    <item.icon className="h-5 w-5 flex-shrink-0" />
+                  </div>
+                  {!collapsed && <span>{item.name}</span>}
+                </>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+        
+        <div className="mt-auto px-4 space-y-4 pt-8">
+          {/* Pro Tip Box - only show when expanded */}
+          {!collapsed && !isMobile && (
+            <div className="bg-slate-100 dark:bg-white/5 rounded-xl p-4 text-slate-800 dark:text-white/90 border border-slate-200 dark:border-white/10 shadow-glass-inset relative overflow-hidden group hover:border-brand-500/30 transition-colors">
+              <h4 className="font-bold text-sm mb-1 flex items-center gap-1.5 text-slate-900 dark:text-white">
+                <span className="text-brand-400">✨</span> Tip
+              </h4>
+              <p className="text-xs text-slate-800 dark:text-white/90 leading-relaxed font-medium">
+                You can upload audio in multiple languages for automatic translation and summarization.
+              </p>
+            </div>
           )}
+
+          {/* Logout Button */}
+          <button
+            onClick={() => setShowSignOut(true)}
+            className={`w-full group flex items-center ${collapsed ? 'justify-center px-0' : 'gap-3 px-3'} py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 border border-transparent hover:border-rose-500/20`}
+            title={collapsed ? 'Sign Out' : ''}
+          >
+            <div className="flex items-center justify-center transition-colors text-rose-500 group-hover:text-rose-400">
+              <ArrowRightOnRectangleIcon className="h-5 w-5 flex-shrink-0" />
+            </div>
+            {!collapsed && <span>Sign Out</span>}
+          </button>
         </div>
       </div>
-      
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-3">
-        {navigation.map((item) => (
-          <NavLink
-            key={item.name}
-            to={item.href}
-            className={({ isActive }) =>
-              `group flex items-center ${collapsed ? 'justify-center' : 'gap-3'} rounded-lg px-3 py-3 text-sm font-medium transition-all ${
-                isActive
-                  ? 'bg-gradient-to-r from-blue-600 to-teal-500 text-white shadow-lg'
-                  : 'text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-teal-50 hover:text-blue-600'
-              }`
-            }
-            title={collapsed ? item.name : ''}
-          >
-            {({ isActive }) => (
-              <>
-                <item.icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-blue-600'}`} />
-                {!collapsed && <span>{item.name}</span>}
-              </>
-            )}
-          </NavLink>
-        ))}
-      </nav>
-      
-      {/* Pro Tip Box - only show when expanded */}
-      {!collapsed && !isMobile && (
-        <div className="px-4 mt-6">
-          <div className="bg-gradient-to-r from-blue-600 to-teal-500 rounded-lg p-4 text-white">
-            <h4 className="font-semibold mb-2 flex items-center gap-1">
-              <span className="text-lg">💡</span> Pro Tip
-            </h4>
-            <p className="text-sm opacity-90">
-              Upload your lecture and get AI-powered summaries in minutes!
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
+
+      <SignOutModal
+        isOpen={showSignOut}
+        onCancel={() => setShowSignOut(false)}
+        onConfirm={handleLogout}
+      />
+    </>
   )
 }
 
