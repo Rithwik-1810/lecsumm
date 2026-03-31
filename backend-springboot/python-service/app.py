@@ -77,13 +77,6 @@ def wait_for_files_active(files):
         if file.state.name != "ACTIVE":
             raise Exception(f"File {f.name} failed to process: {file.state.name}")
 
-@app.route('/', methods=['GET'])
-def index():
-    return jsonify({
-        "message": "AI Lecture Summarizer Service is Running",
-        "endpoints": ["/health", "/process", "/transcribe"]
-    })
-
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok", "api_key_set": bool(os.getenv("GEMINI_API_KEY"))})
