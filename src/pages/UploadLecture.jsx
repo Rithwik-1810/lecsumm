@@ -167,20 +167,84 @@ const UploadLecture = () => {
         </AnimatePresence>
 
         {/* CTA */}
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
-          <button onClick={handleUpload} disabled={uploading || !file}
-            className={`w-full py-4.5 rounded-2xl font-bold text-sm flex items-center justify-center gap-3 transition-all duration-300 ${!file || uploading
-              ? 'bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-800 dark:text-white/90 cursor-not-allowed'
-              : 'stripe-gradient-bg text-slate-900 dark:text-white shadow-glow-brand hover:scale-[1.02] border border-slate-300 dark:border-white/20'
-              }`}
-          >
-            {uploading ? (
-              <><svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Processing Data</>
-            ) : (
-              <><SparklesIcon className="w-5 h-5" /> Start Upload</>
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.5 }}>
+          <div className="relative group">
+            {/* Animated glow ring behind button — only when file is selected */}
+            {file && !uploading && (
+              <motion.div
+                className="absolute -inset-1 rounded-[1.25rem] opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-lg"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #8b5cf6, #06b6d4)' }}
+                animate={{ backgroundPosition: ['0% 50%', '100% 50%', '0% 50%'] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+              />
             )}
-          </button>
-          {!file && <p className="text-center text-[11px] uppercase tracking-widest text-slate-800 dark:text-white/90 mt-3 font-bold">Ready to Upload</p>}
+            {/* Pulsing ring when ready */}
+            {file && !uploading && (
+              <motion.div
+                className="absolute -inset-0.5 rounded-[1.25rem] blur-sm"
+                style={{ background: 'linear-gradient(135deg, #06b6d4, #8b5cf6, #06b6d4)' }}
+                animate={{ opacity: [0.4, 0.7, 0.4] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            )}
+            <button onClick={handleUpload} disabled={uploading || !file}
+              className={`relative w-full py-5 rounded-[1rem] font-bold text-[15px] tracking-wide flex items-center justify-center gap-3 transition-all duration-300 overflow-hidden ${!file || uploading
+                ? 'bg-slate-100 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 text-slate-400 dark:text-white/30 cursor-not-allowed'
+                : 'bg-gradient-to-r from-brand-500 via-purple-500 to-brand-500 text-white shadow-[0_0_30px_rgba(6,182,212,0.4),0_0_60px_rgba(139,92,246,0.2)] hover:shadow-[0_0_40px_rgba(6,182,212,0.6),0_0_80px_rgba(139,92,246,0.3)] hover:scale-[1.02] active:scale-[0.98] border border-white/20'
+                }`}
+              style={file && !uploading ? { backgroundSize: '200% auto' } : {}}
+            >
+              {/* Shimmer sweep effect on hover */}
+              {file && !uploading && (
+                <motion.div
+                  className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12"
+                  initial={{ x: '-100%' }}
+                  animate={{ x: '200%' }}
+                  transition={{ duration: 2, repeat: Infinity, repeatDelay: 3, ease: 'easeInOut' }}
+                />
+              )}
+              {uploading ? (
+                <>
+                  <svg className="animate-spin w-5 h-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <span>Processing Data...</span>
+                </>
+              ) : (
+                <>
+                  <motion.div
+                    animate={file ? { rotate: [0, 15, -15, 0], scale: [1, 1.2, 1] } : {}}
+                    transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
+                  >
+                    <SparklesIcon className="w-5 h-5" />
+                  </motion.div>
+                  <span>Start Upload</span>
+                  {file && (
+                    <motion.span
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="ml-1 text-white/70"
+                    >→</motion.span>
+                  )}
+                </>
+              )}
+            </button>
+          </div>
+          {!file && (
+            <p className="text-center text-[11px] uppercase tracking-[0.2em] text-slate-400 dark:text-white/30 mt-4 font-semibold">
+              Select a file to begin
+            </p>
+          )}
+          {file && !uploading && (
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center text-[11px] uppercase tracking-[0.2em] text-brand-400 mt-4 font-bold"
+            >
+              ✨ Ready to analyze your lecture
+            </motion.p>
+          )}
         </motion.div>
 
       </div>
