@@ -87,4 +87,10 @@ public class UserService implements UserDetailsService {
         
         return userRepository.save(user);
     }
+
+    public void updatePassword(String email, String newPassword) {
+        User user = getUserByEmail(email);
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+    }
 }

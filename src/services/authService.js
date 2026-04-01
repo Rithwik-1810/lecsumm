@@ -25,6 +25,21 @@ export const authService = {
     return response.data;
   },
 
+  sendSignupOtp: async (email) => {
+    const response = await api.post('/auth/send-signup-otp', { email });
+    return response.data;
+  },
+
+  sendForgotPasswordOtp: async (email) => {
+    const response = await api.post('/auth/send-forgot-password-otp', { email });
+    return response.data;
+  },
+
+  resetPassword: async (email, otp, newPassword) => {
+    const response = await api.post('/auth/reset-password', { email, otp, newPassword });
+    return response.data;
+  },
+
   logout: () => {
     localStorage.removeItem('token');
   },

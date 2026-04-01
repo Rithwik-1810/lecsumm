@@ -11,20 +11,35 @@ import Input from '../components/common/Input';
 
 // Auth Modal Component
 const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
-  const { login, register, googleLogin } = useAuth();
+  const { login, register, googleLogin, sendSignupOtp, sendForgotPasswordOtp, resetPassword } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [verificationStep, setVerificationStep] = useState(false);
+  const [currentView, setCurrentView] = useState(mode);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    otp: '',
+    newPassword: ''
   });
+
+  React.useEffect(() => {
+    setCurrentView(mode);
+  }, [mode]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const resetForm = () => {
+    setFormData({ name: '', email: '', password: '', confirmPassword: '', otp: '', newPassword: '' });
+  };
+
+  const handleSwitchMode = () => {
+    onSwitchMode();
+    resetForm();
   };
 
   const handleLogin = async (e) => {
@@ -54,16 +69,76 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
     }
     setLoading(true);
     try {
-      const result = await register({
-        name: formData.name, email: formData.email, password: formData.password
-      });
+      const result = await sendSignupOtp(formData.email);
       if (result.success) {
-        setVerificationStep(true); 
+        toast.success('Verification code sent to your email.');
+        setCurrentView('verify_signup');
       } else {
-        toast.error(result.error || 'Registration failed');
+        toast.error(result.error || 'Failed to send verification code.');
       }
     } catch {
-      toast.error('Registration failed.');
+      toast.error('Connection error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifySignup = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const result = await register({
+        name: formData.name, email: formData.email, password: formData.password, otp: formData.otp
+      });
+      if (result.success) {
+        toast.success('Email verified! Welcome aboard.');
+        onClose();
+        navigate('/dashboard');
+      } else {
+        toast.error(result.error || 'Verification failed');
+      }
+    } catch {
+      toast.error('Verification error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const result = await sendForgotPasswordOtp(formData.email);
+      if (result.success) {
+        toast.success('Reset code sent to your email.');
+        setCurrentView('reset_password');
+      } else {
+        toast.error(result.error || 'Failed to send reset code.');
+      }
+    } catch {
+      toast.error('Connection error.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    if (formData.newPassword !== formData.confirmPassword) {
+      toast.error('New passwords do not match.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await resetPassword(formData.email, formData.otp, formData.newPassword);
+      if (result.success) {
+        toast.success('Password reset successfully. You can now login.');
+        setCurrentView('login');
+      } else {
+        toast.error(result.error || 'Password reset failed');
+      }
+    } catch {
+      toast.error('Connection error.');
     } finally {
       setLoading(false);
     }
@@ -85,28 +160,6 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  // Auto-redirect after showing verification screen
-  React.useEffect(() => {
-    if (verificationStep) {
-      const timer = setTimeout(() => {
-        onClose();
-        toast.success('Email verified! Welcome aboard.');
-        navigate('/dashboard');
-      }, 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [verificationStep, navigate, onClose]);
-
-  const resetForm = () => {
-    setFormData({ name: '', email: '', password: '', confirmPassword: '' });
-    setVerificationStep(false);
-  };
-
-  const handleSwitchMode = () => {
-    onSwitchMode();
-    resetForm();
   };
 
   if (!isOpen) return null;
@@ -135,33 +188,41 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
             <XMarkIcon className="w-5 h-5" />
           </button>
 
-          {!verificationStep ? (
+          {(currentView === 'login' || currentView === 'signup') && (
             <>
               <div className="text-center mb-8">
                 <div className="inline-flex items-center justify-center w-16 h-16 stripe-gradient-bg rounded-2xl shadow-glow-brand mb-5 group-hover:scale-105 transition-transform">
-                  {mode === 'login' ? <ArrowRightOnRectangleIcon className="h-8 w-8 text-slate-900 dark:text-white relative z-10" /> : <UserPlusIcon className="h-8 w-8 text-slate-900 dark:text-white relative z-10" />}
+                  {currentView === 'login' ? <ArrowRightOnRectangleIcon className="h-8 w-8 text-slate-900 dark:text-white relative z-10" /> : <UserPlusIcon className="h-8 w-8 text-slate-900 dark:text-white relative z-10" />}
                 </div>
                 <h2 className="text-3xl font-display font-bold text-slate-900 dark:text-white mb-2 tracking-tight">
-                  {mode === 'login' ? 'Sign In' : 'Sign Up'}
+                  {currentView === 'login' ? 'Sign In' : 'Sign Up'}
                 </h2>
                 <p className="text-slate-800 dark:text-white/90 font-medium text-sm">
-                  {mode === 'login' ? 'Enter your details to sign in.' : 'Create an account to get started.'}
+                  {currentView === 'login' ? 'Enter your details to sign in.' : 'Create an account to get started.'}
                 </p>
               </div>
 
-              <form onSubmit={mode === 'login' ? handleLogin : handleSignup} className="space-y-4">
-                {mode === 'signup' && (
-                  <Input label="Name" type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="Rithwik..,Harsha..,Deekshith..," required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-surface-500 focus-stripe" />
+              <form onSubmit={currentView === 'login' ? handleLogin : handleSignup} className="space-y-4">
+                {currentView === 'signup' && (
+                  <Input label="Name" type="text" name="name" value={formData.name} onChange={handleInputChange} placeholder="Your Name" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-surface-500 focus-stripe" />
                 )}
-                <Input label="Email Address" type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="23......5XX@cvr.ac.in" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-surface-500 focus-stripe" />
+                <Input label="Email Address" type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="you@email.com" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-surface-500 focus-stripe" />
                 <Input label="Password" type="password" name="password" value={formData.password} onChange={handleInputChange} placeholder="••••••••" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-surface-500 focus-stripe" />
-                {mode === 'signup' && (
+                {currentView === 'signup' && (
                   <Input label="Confirm Password" type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} placeholder="••••••••" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white placeholder-surface-500 focus-stripe" />
+                )}
+                
+                {currentView === 'login' && (
+                  <div className="flex justify-end">
+                    <button type="button" onClick={() => setCurrentView('forgot_password')} className="text-sm text-brand-400 hover:text-brand-300 font-medium transition-colors">
+                      Forgot Password?
+                    </button>
+                  </div>
                 )}
 
                 <div className="pt-2">
                   <Button type="submit" disabled={loading} className="w-full text-base py-3 stripe-gradient-bg shadow-glow-brand rounded-full text-slate-900 dark:text-white font-semibold flex items-center justify-center gap-2 hover:scale-[1.02] transition-all">
-                    {loading ? <span className="animate-pulse">Processing...</span> : mode === 'login' ? 'Sign In' : 'Sign Up'}
+                    {loading ? <span className="animate-pulse">Processing...</span> : currentView === 'login' ? 'Sign In' : 'Continue'}
                   </Button>
                 </div>
               </form>
@@ -188,36 +249,66 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
 
               <div className="mt-8 text-center text-sm">
                 <p className="text-slate-800 dark:text-white/90 font-medium">
-                  {mode === 'login' ? "Don't have an account? " : "Already have an account? "}
+                  {currentView === 'login' ? "Don't have an account? " : "Already have an account? "}
                   <button type="button" onClick={handleSwitchMode} className="text-brand-400 hover:text-brand-300 font-bold transition-colors">
-                    {mode === 'login' ? 'Sign Up' : 'Sign In'}
+                    {currentView === 'login' ? 'Sign Up' : 'Sign In'}
                   </button>
                 </p>
               </div>
             </>
-          ) : (
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.5 }}>
-              <div className="text-center py-4">
-                <div className="inline-flex items-center justify-center w-20 h-20 bg-emerald-500/15 border border-emerald-500/30 rounded-full mb-6 shadow-[0_0_30px_rgba(16,185,129,0.25)]">
-                  <CheckCircleIcon className="h-10 w-10 text-emerald-400" />
-                </div>
-                <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white mb-3 tracking-tight">Verification Email Sent!</h2>
-                <p className="text-slate-700 dark:text-white/80 font-medium text-sm px-4 leading-relaxed">
-                  We've sent a verification link to<br />
-                  <strong className="text-brand-300">{formData.email}</strong>
-                </p>
-                
-                <div className="mt-8 flex flex-col items-center gap-4">
-                  <div className="flex items-center gap-2 text-sm text-emerald-400 font-semibold">
-                    <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Redirecting to dashboard...
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-white/50 font-medium">You'll be redirected automatically</p>
-                </div>
+          )}
+
+          {currentView === 'verify_signup' && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <div className="text-center mb-6">
+                <CheckCircleIcon className="h-12 w-12 text-brand-400 mx-auto mb-4" />
+                <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white mb-2">Verify Email</h2>
+                <p className="text-slate-800 dark:text-white/80 text-sm">We've sent a 6-digit code to {formData.email}</p>
               </div>
+              <form onSubmit={handleVerifySignup} className="space-y-4">
+                <Input label="Verification Code" type="text" name="otp" value={formData.otp} onChange={handleInputChange} placeholder="123456" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus-stripe text-center tracking-widest text-xl" maxLength={6} />
+                <Button type="submit" disabled={loading} className="w-full text-base py-3 stripe-gradient-bg shadow-glow-brand rounded-full text-slate-900 dark:text-white font-semibold flex items-center justify-center">
+                  {loading ? 'Verifying...' : 'Complete Sign Up'}
+                </Button>
+                <div className="text-center mt-4">
+                  <button type="button" onClick={() => setCurrentView('signup')} className="text-sm text-slate-500 hover:text-slate-700 dark:text-white/50 hover:dark:text-white">← Back</button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
+          {currentView === 'forgot_password' && (
+            <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white mb-2">Reset Password</h2>
+                <p className="text-slate-800 dark:text-white/80 text-sm">Enter your email to receive a reset code.</p>
+              </div>
+              <form onSubmit={handleForgotPassword} className="space-y-4">
+                <Input label="Email Address" type="email" name="email" value={formData.email} onChange={handleInputChange} placeholder="you@email.com" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus-stripe" />
+                <Button type="submit" disabled={loading} className="w-full text-base py-3 stripe-gradient-bg shadow-glow-brand rounded-full text-slate-900 dark:text-white font-semibold">
+                  {loading ? 'Sending...' : 'Send Reset Code'}
+                </Button>
+                <div className="text-center mt-4">
+                  <button type="button" onClick={() => setCurrentView('login')} className="text-sm text-slate-500 hover:text-slate-700 dark:text-white/50 hover:dark:text-white">← Back to Login</button>
+                </div>
+              </form>
+            </motion.div>
+          )}
+
+          {currentView === 'reset_password' && (
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-display font-bold text-slate-900 dark:text-white mb-2">Choose New Password</h2>
+                <p className="text-slate-800 dark:text-white/80 text-sm">Enter the code sent to your email and your new password.</p>
+              </div>
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <Input label="Reset Code" type="text" name="otp" value={formData.otp} onChange={handleInputChange} placeholder="123456" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus-stripe text-center tracking-widest text-xl" maxLength={6} />
+                <Input label="New Password" type="password" name="newPassword" value={formData.newPassword} onChange={handleInputChange} placeholder="••••••••" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus-stripe" />
+                <Input label="Confirm New Password" type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} placeholder="••••••••" required className="bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 text-slate-900 dark:text-white focus-stripe" />
+                <Button type="submit" disabled={loading} className="w-full text-base py-3 stripe-gradient-bg shadow-glow-brand rounded-full text-slate-900 dark:text-white font-semibold">
+                  {loading ? 'Resetting...' : 'Reset Password'}
+                </Button>
+              </form>
             </motion.div>
           )}
         </div>
