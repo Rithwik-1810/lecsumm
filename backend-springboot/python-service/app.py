@@ -42,6 +42,18 @@ if os.getenv("GEMINI_API_KEY"):
 else:
     logger.warning("GEMINI_API_KEY IS MISSING! AI features will fail.")
 
+# Initialize Groq client (fallback)
+groq_client = None
+if os.getenv("GROQ_API_KEY"):
+    try:
+        from groq import Groq
+        groq_client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+        logger.info("✅ Groq client initialized (fallback ready).")
+    except Exception as e:
+        logger.warning(f"Groq init failed: {e}")
+else:
+    logger.warning("GROQ_API_KEY not set — Groq fallback disabled.")
+
 # Shared model instance to save resources
 try:
     # whisper fallback instance
@@ -77,9 +89,124 @@ def wait_for_files_active(files):
         if file.state.name != "ACTIVE":
             raise Exception(f"File {f.name} failed to process: {file.state.name}")
 
+def is_quota_error(e):
+    """Check if an exception is a quota/rate-limit error."""
+    err_msg = str(e).lower()
+    return "quota" in err_msg or "429" in err_msg or "resource has been exhausted" in err_msg
+
+# ─────────────────────────────────────────────────────
+# GROQ FALLBACK FUNCTIONS
+# ─────────────────────────────────────────────────────
+def groq_transcribe(filepath):
+    """Transcribe audio using Groq Whisper Large v3 Turbo."""
+    if not groq_client:
+        raise Exception("Groq client not available")
+    
+    logger.info("🔄 GROQ FALLBACK: Transcribing with Whisper...")
+    with open(filepath, "rb") as audio_file:
+        transcription = groq_client.audio.transcriptions.create(
+            file=(os.path.basename(filepath), audio_file),
+            model="whisper-large-v3-turbo",
+            response_format="text",
+        )
+    logger.info(f"✅ Groq transcription complete ({len(transcription)} chars)")
+    return transcription
+
+def groq_summarize(transcript, language):
+    """Summarize transcript using Groq Llama 3.3 70B."""
+    if not groq_client:
+        raise Exception("Groq client not available")
+    
+    logger.info("🔄 GROQ FALLBACK: Summarizing with Llama 3.3...")
+    prompt = f"""Analyze the following lecture transcript and provide a concise, direct summary in {language.capitalize()}.
+
+CRITICAL INSTRUCTIONS:
+- BE CONCISE: Scale the summary length to match the context.
+- ZERO FLUFF: Avoid introductory phrases ("This transcript handles...", "The speaker discusses..."). 
+- STUDENT-FIRST: Provide only the essential facts, actionable information, and core concepts. 
+- NO META-DESCRIPTION: Do not explain what is missing or analyzed; just summarize what IS there.
+
+Provide the following structured JSON response:
+1. "summary": A brief, professional summary (direct and factual).
+2. "keyPoints": A list of the most important takeaways (max 5 items, brief).
+3. "topics": A list of the main subject areas (max 3 items).
+
+Return ONLY the raw JSON object with these three keys.
+
+Transcript:
+\"\"\"{transcript}\"\"\""""
+    
+    response = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_completion_tokens=2048,
+    )
+    return response.choices[0].message.content
+
+def groq_extract_tasks(transcript):
+    """Extract tasks using Groq Llama 3.3 70B."""
+    if not groq_client:
+        raise Exception("Groq client not available")
+    
+    logger.info("🔄 GROQ FALLBACK: Extracting tasks with Llama 3.3...")
+    from datetime import datetime
+    prompt = f"""You are an intelligent task extraction assistant. Analyze the following lecture transcript and extract actionable tasks and assignments.
+
+CRITICAL INSTRUCTIONS:
+- BE DIRECT: Extract ONLY what is explicitly mentioned. Do not add meta-commentary.
+- CONCISE TITLES: Generate very brief, 2-4 word titles (e.g., "Neural Networks Assignment").
+- SIMPLE DESCRIPTIONS: Limit descriptions to one clear, actionable sentence.
+- AUTOMATED DEADLINE EXTRACTION: Deduce the exact deadline from the context.
+  - Current Date: {datetime.now().strftime("%Y-%m-%d")}.
+  - Default time to 18:00:00 if no specific time is mentioned.
+- ZERO HALLUCINATION: If a detail isn't clear, don't guess.
+
+For each task, provide:
+1. "title": Short, unique name.
+2. "description": One simple sentence summary.
+3. "priority": "High", "Medium", or "Low".
+4. "deadline": ISO 8601 format (YYYY-MM-DDTHH:MM:SS).
+
+Return the result ONLY as a JSON array of objects. If no tasks are found, return [].
+
+Transcript:
+\"\"\"{transcript}\"\"\""""
+    
+    response = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_completion_tokens=2048,
+    )
+    return response.choices[0].message.content
+
+def process_with_groq(filepath, language):
+    """Full processing pipeline using Groq (transcribe → summarize → extract tasks)."""
+    logger.info("🔄 === GROQ FALLBACK PIPELINE ACTIVATED ===")
+    
+    # 1. Transcribe
+    transcript = groq_transcribe(filepath)
+    
+    # 2. Summarize
+    summary_raw = groq_summarize(transcript, language)
+    summary_text, key_points, topics = summarizer._parse_response(summary_raw)
+    
+    # 3. Extract tasks
+    tasks_raw = groq_extract_tasks(transcript)
+    tasks = task_extractor._parse_tasks(tasks_raw)
+    
+    logger.info("✅ Groq fallback pipeline complete!")
+    return transcript, summary_text, key_points, topics, tasks
+
+
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok", "api_key_set": bool(os.getenv("GEMINI_API_KEY"))})
+    return jsonify({
+        "status": "ok", 
+        "api_key_set": bool(os.getenv("GEMINI_API_KEY")),
+        "groq_available": groq_client is not None
+    })
 
 @app.route('/process', methods=['POST'])
 def process_lecture():
@@ -107,79 +234,95 @@ def process_lecture():
 
         duration = get_audio_duration(filepath)
         
-        # 1. OPTIMIZATION: Use Direct Bytes for small files (< 20MB)
-        # Use Gemini File API ONLY for large files (> 20MB)
-        audio_content = None
-        import mimetypes
-        mimetypes.init()
-        # Ensure m4a is recognized as mp4 which gemini likes
-        mimetypes.add_type('audio/mp4', '.m4a')
-        guessed_type, _ = mimetypes.guess_type(filename)
-        mime_type = guessed_type if guessed_type or not filename.endswith('.m4a') else 'audio/mp4'
-        
-        if file_size < 20 * 1024 * 1024:
-            logger.info(f"Using direct bytes for small file optimization ({mime_type})")
-            with open(filepath, "rb") as f:
-                audio_content = {
-                    "mime_type": mime_type, 
-                    "data": f.read()
-                }
-        else:
-            logger.info("Using Gemini File API for large file processing.")
-            g_file = genai.upload_file(path=filepath, display_name=filename)
-            gemini_files.append(g_file)
-            wait_for_files_active([g_file])
-            audio_content = g_file
-
-        # Safety configuration
-        safety_settings = {
-            HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-            HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-        }
-
-        # ROBUST MODEL FALLBACK CHAIN
-        def generate_with_fallback(prompt_list):
-            # Prioritize 1.5 Flash as it is most stable for free tier
-            models = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
-            last_err = None
-            for m_name in models:
-                try:
-                    logger.info(f"Attempting generation with model: {m_name}")
-                    m = genai.GenerativeModel(m_name)
-                    return m.generate_content(prompt_list, safety_settings=safety_settings)
-                except Exception as e:
-                    last_err = e
-                    err_msg = str(e).lower()
-                    if "quota" in err_msg or "429" in err_msg or "404" in err_msg:
-                        logger.warning(f"Model {m_name} failed (quota/not found), trying next...")
-                        continue
-                    raise e
-            raise last_err
-
-        # 1. Summary
-        logger.info("Generating summary...")
-        summary_prompt = summarizer._get_prompt(language)
-        s_response = generate_with_fallback([summary_prompt, audio_content])
-        summary_text, key_points, topics = summarizer._parse_response(s_response.text)
-        
-        # 2. Tasks
-        logger.info("Extracting tasks...")
-        task_prompt = task_extractor._get_prompt()
-        t_response = generate_with_fallback([task_prompt, audio_content])
-        tasks = task_extractor._parse_tasks(t_response.text)
-
-        # 3. Transcript
-        logger.info("Generating transcript...")
-        transcript = ""
+        # ───────────────────────────────────────────
+        # TRY GEMINI FIRST
+        # ───────────────────────────────────────────
+        gemini_failed = False
         try:
-            transcript_prompt = f"Provide a full, verbatim transcript of this audio in {language.capitalize()}. Return ONLY the transcript text."
-            tr_response = generate_with_fallback([transcript_prompt, audio_content])
-            transcript = tr_response.text
-        except:
-            logger.warning("Gemini transcript generation failed, falling back to local STT.")
-            transcript = stt_fallback.transcribe(filepath, language[:2]) or "Summary generated successfully, but the full transcript was unavailable."
+            # 1. Prepare audio content for Gemini
+            audio_content = None
+            import mimetypes
+            mimetypes.init()
+            mimetypes.add_type('audio/mp4', '.m4a')
+            guessed_type, _ = mimetypes.guess_type(filename)
+            mime_type = guessed_type if guessed_type or not filename.endswith('.m4a') else 'audio/mp4'
+            
+            if file_size < 20 * 1024 * 1024:
+                logger.info(f"Using direct bytes for small file optimization ({mime_type})")
+                with open(filepath, "rb") as f:
+                    audio_content = {
+                        "mime_type": mime_type, 
+                        "data": f.read()
+                    }
+            else:
+                logger.info("Using Gemini File API for large file processing.")
+                g_file = genai.upload_file(path=filepath, display_name=filename)
+                gemini_files.append(g_file)
+                wait_for_files_active([g_file])
+                audio_content = g_file
+
+            # Safety configuration
+            safety_settings = {
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            }
+
+            # ROBUST MODEL FALLBACK CHAIN (within Gemini)
+            def generate_with_fallback(prompt_list):
+                models = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
+                last_err = None
+                for m_name in models:
+                    try:
+                        logger.info(f"Attempting generation with model: {m_name}")
+                        m = genai.GenerativeModel(m_name)
+                        return m.generate_content(prompt_list, safety_settings=safety_settings)
+                    except Exception as e:
+                        last_err = e
+                        err_msg = str(e).lower()
+                        if "quota" in err_msg or "429" in err_msg or "404" in err_msg or "resource" in err_msg:
+                            logger.warning(f"Model {m_name} failed (quota/not found), trying next...")
+                            continue
+                        raise e
+                raise last_err
+
+            # 1. Summary
+            logger.info("Generating summary...")
+            summary_prompt = summarizer._get_prompt(language)
+            s_response = generate_with_fallback([summary_prompt, audio_content])
+            summary_text, key_points, topics = summarizer._parse_response(s_response.text)
+            
+            # 2. Tasks
+            logger.info("Extracting tasks...")
+            task_prompt = task_extractor._get_prompt()
+            t_response = generate_with_fallback([task_prompt, audio_content])
+            tasks = task_extractor._parse_tasks(t_response.text)
+
+            # 3. Transcript
+            logger.info("Generating transcript...")
+            transcript = ""
+            try:
+                transcript_prompt = f"Provide a full, verbatim transcript of this audio in {language.capitalize()}. Return ONLY the transcript text."
+                tr_response = generate_with_fallback([transcript_prompt, audio_content])
+                transcript = tr_response.text
+            except:
+                logger.warning("Gemini transcript generation failed, falling back to local STT.")
+                transcript = stt_fallback.transcribe(filepath, language[:2]) or "Summary generated successfully, but the full transcript was unavailable."
+
+        except Exception as gemini_err:
+            if is_quota_error(gemini_err) and groq_client:
+                logger.warning(f"⚠️ Gemini quota exhausted: {gemini_err}")
+                logger.info("🔄 Switching to Groq fallback...")
+                gemini_failed = True
+            else:
+                raise gemini_err
+
+        # ───────────────────────────────────────────
+        # GROQ FALLBACK (if Gemini quota exhausted)
+        # ───────────────────────────────────────────
+        if gemini_failed:
+            transcript, summary_text, key_points, topics, tasks = process_with_groq(filepath, language)
 
         return jsonify({
             "transcript": transcript,
@@ -199,7 +342,7 @@ def process_lecture():
         if "quota" in err_msg or "429" in err_msg:
             return jsonify({
                 "error": "AI_QUOTA_EXHAUSTED",
-                "message": "The AI is currently at capacity (Free Tier limits reached). Please try again in 1-2 minutes."
+                "message": "All AI providers are currently at capacity. Please try again in 1-2 minutes."
             }), 429
         
         return jsonify({
@@ -216,4 +359,5 @@ def process_lecture():
 
 if __name__ == '__main__':
     print(f"GenAI SDK Version: {genai.__version__}")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    print(f"Groq Available: {groq_client is not None}")
+    app.run(host='0.0.0.0', port=5000, debug=True)
