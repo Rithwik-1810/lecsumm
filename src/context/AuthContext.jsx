@@ -61,38 +61,29 @@ export const AuthProvider = ({ children }) => {
   };
 
   const sendSignupOtp = async (email) => {
-    setLoading(true);
     try {
       await authService.sendSignupOtp(email);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.response?.data || error.message };
-    } finally {
-      setLoading(false);
     }
   };
 
   const sendForgotPasswordOtp = async (email) => {
-    setLoading(true);
     try {
       await authService.sendForgotPasswordOtp(email);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.response?.data || error.message };
-    } finally {
-      setLoading(false);
     }
   };
 
   const resetPassword = async (email, otp, newPassword) => {
-    setLoading(true);
     try {
       await authService.resetPassword(email, otp, newPassword);
       return { success: true };
     } catch (error) {
       return { success: false, error: error.response?.data || error.message };
-    } finally {
-      setLoading(false);
     }
   };
 
