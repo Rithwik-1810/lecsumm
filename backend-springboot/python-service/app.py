@@ -60,7 +60,7 @@ try:
     stt_fallback = SpeechToText() 
     summarizer = Summarizer()
     task_extractor = TaskExtractor()
-    ai_model = genai.GenerativeModel('gemini-2.5-flash')
+    ai_model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
     logger.exception("Failed to initialize AI models: %s", str(e))
     stt_fallback = summarizer = task_extractor = ai_model = None
@@ -240,15 +240,19 @@ def process_lecture():
         gemini_failed = False
         try:
             # 1. Prepare audio content via Gemini File API
-            # Always use File API — it handles MIME type detection automatically
-            # and reliably supports MP3, M4A, WAV, OGG, FLAC, AAC, MP4, MOV etc.
             audio_content = None
-            logger.info(f"Uploading file to Gemini File API: {filename} ({file_size / (1024*1024):.2f} MB)")
-            g_file = genai.upload_file(path=filepath, display_name=filename)
+            
+            # Simple MIME hint for Gemini (improves processing speed)
+            MIME_MAP = {'.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.mp4': 'video/mp4'}
+            ext = os.path.splitext(filename)[1].lower()
+            mime_type = MIME_MAP.get(ext, 'audio/mpeg')
+
+            logger.info(f"Uploading to Gemini File API: {filename} ({mime_type})")
+            g_file = genai.upload_file(path=filepath, display_name=filename, mime_type=mime_type)
             gemini_files.append(g_file)
             wait_for_files_active([g_file])
             audio_content = g_file
-            logger.info(f"Gemini File API upload complete. URI: {g_file.uri}")
+            logger.info(f"Gemini File API ready: {g_file.uri}")
 
             # Safety configuration
             safety_settings = {
@@ -260,7 +264,7 @@ def process_lecture():
 
             # ROBUST MODEL FALLBACK CHAIN (within Gemini)
             def generate_with_fallback(prompt_list):
-                models = ['gemini-1.5-flash', 'gemini-2.5-flash', 'gemini-flash-latest']
+                models = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest']
                 last_err = None
                 for m_name in models:
                     try:
