@@ -1,7 +1,12 @@
-﻿node_modules/
+node_modules/
 .env
 dist/
 .DS_Store
 *.log
 .vscode/
 .vercel
+venv/
+uploads/
+target/
+*.class
+*.jar
