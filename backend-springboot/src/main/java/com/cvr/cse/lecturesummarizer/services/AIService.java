@@ -87,14 +87,29 @@ public class AIService {
 
         HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
 
-        try {
-            ResponseEntity<String> response = restTemplate.postForEntity(url, requestEntity, String.class);
-            logger.info("AI service responded with status: {}", response.getStatusCode());
-            logger.debug("Response body: {}", response.getBody());
-            return objectMapper.readValue(response.getBody(), AIResponse.class);
-        } catch (Exception e) {
-            logger.error("Error calling AI service: {}", e.getMessage(), e);
-            throw e;
+        int maxRetries = 4;
+        long delayMs = 30000; // 30 seconds
+
+        for (int i = 0; i < maxRetries; i++) {
+            try {
+                ResponseEntity<String> response = restTemplate.postForEntity(url, requestEntity, String.class);
+                logger.info("AI service responded with status: {}", response.getStatusCode());
+                logger.debug("Response body: {}", response.getBody());
+                return objectMapper.readValue(response.getBody(), AIResponse.class);
+            } catch (org.springframework.web.client.HttpStatusCodeException e) {
+                String errorBody = e.getResponseBodyAsString();
+                if (errorBody != null && errorBody.contains("<!DOCTYPE html>") && i < maxRetries - 1) {
+                    logger.warn("Hugging Face is sleeping/returning HTML. Retrying in {} seconds (attempt {}/{})", delayMs/1000, i + 1, maxRetries);
+                    try { Thread.sleep(delayMs); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                } else {
+                    logger.error("Error calling AI service: {}", e.getMessage(), e);
+                    throw e;
+                }
+            } catch (Exception e) {
+                logger.error("Error calling AI service: {}", e.getMessage(), e);
+                throw e;
+            }
         }
+        throw new RuntimeException("Failed to call AI service after retries.");
     }
 }
