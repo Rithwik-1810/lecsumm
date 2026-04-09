@@ -10,7 +10,7 @@ import java.net.http.HttpResponse;
 @Service
 public class EmailService {
 
-    private static final String RESEND_API_KEY = "re_LfhJUv6d_DuHYDxT5jszrc5nd8dDLDXfb";
+    private static final String RESEND_API_KEY = "re_9nzivKs9_FxQcsTsc3t2RgcoLDrYh2Hbs";
 
     @org.springframework.scheduling.annotation.Async
     public void sendVerificationCode(String toEmail, String code, String type) {
