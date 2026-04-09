@@ -239,38 +239,16 @@ def process_lecture():
         # ───────────────────────────────────────────
         gemini_failed = False
         try:
-            # 1. Prepare audio content for Gemini
+            # 1. Prepare audio content via Gemini File API
+            # Always use File API — it handles MIME type detection automatically
+            # and reliably supports MP3, M4A, WAV, OGG, FLAC, AAC, MP4, MOV etc.
             audio_content = None
-            
-            # Explicit MIME type map — never let mimetypes guess wrong for audio files
-            AUDIO_MIME_MAP = {
-                '.m4a': 'audio/mp4',
-                '.mp3': 'audio/mpeg',
-                '.wav': 'audio/wav',
-                '.ogg': 'audio/ogg',
-                '.flac': 'audio/flac',
-                '.aac': 'audio/aac',
-                '.mp4': 'video/mp4',
-                '.avi': 'video/x-msvideo',
-                '.mov': 'video/quicktime',
-            }
-            ext = os.path.splitext(filename)[1].lower()
-            mime_type = AUDIO_MIME_MAP.get(ext, 'audio/mpeg')
-            logger.info(f"Resolved MIME type for '{ext}': {mime_type}")
-            
-            if file_size < 20 * 1024 * 1024:
-                logger.info(f"Using direct bytes for small file optimization ({mime_type})")
-                with open(filepath, "rb") as f:
-                    audio_content = {
-                        "mime_type": mime_type, 
-                        "data": f.read()
-                    }
-            else:
-                logger.info("Using Gemini File API for large file processing.")
-                g_file = genai.upload_file(path=filepath, display_name=filename)
-                gemini_files.append(g_file)
-                wait_for_files_active([g_file])
-                audio_content = g_file
+            logger.info(f"Uploading file to Gemini File API: {filename} ({file_size / (1024*1024):.2f} MB)")
+            g_file = genai.upload_file(path=filepath, display_name=filename)
+            gemini_files.append(g_file)
+            wait_for_files_active([g_file])
+            audio_content = g_file
+            logger.info(f"Gemini File API upload complete. URI: {g_file.uri}")
 
             # Safety configuration
             safety_settings = {
