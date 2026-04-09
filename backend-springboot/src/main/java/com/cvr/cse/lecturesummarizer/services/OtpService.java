@@ -35,6 +35,13 @@ public class OtpService {
         OtpCode otpCode = new OtpCode(email, code, expiryTime, type);
         
         otpRepository.save(otpCode);
+        
+        // Print to console since Render free tier blocks outbound SMTP
+        System.out.println("\n=======================================================");
+        System.out.println("🚨 OTP GENERATED FOR: " + email);
+        System.out.println("🚨 CODE: " + code);
+        System.out.println("=======================================================\n");
+        
         emailService.sendVerificationCode(email, code, type);
     }
 
