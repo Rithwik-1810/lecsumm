@@ -54,15 +54,18 @@ const TaskDetails = () => {
   };
 
   const handleStatusChange = async (newStatus) => {
+    if (updating) return;
     const oldTask = { ...task };
     const updated = { ...task, status: newStatus };
     if (newStatus === 'completed') updated.progress = 100;
+    else if (newStatus === 'pending') updated.progress = 0;
     else if (newStatus === 'in-progress' && updated.progress === 0) updated.progress = 10;
     
     setTask(updated);
     
     try {
-      const u = await taskService.updateTask(task.id, { ...task, status: newStatus });
+      // Send the updated payload (with correct progress) — not stale task
+      const u = await taskService.updateTask(task.id, updated);
       setTask(u);
       setEditedTask(u);
     } catch (err) {
@@ -215,7 +218,7 @@ const TaskDetails = () => {
                       </div>
                       <div>
                         <p className="text-[10px] font-bold uppercase tracking-widest text-slate-800 dark:text-white/90">Completion</p>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">{progress === 100 ? 'Completed' : 'In Progress'}</p>
+                        <p className="text-sm font-bold text-slate-900 dark:text-white">{progress === 100 ? 'Completed' : progress === 0 ? 'Pending' : 'In Progress'}</p>
                       </div>
                     </div>
                   </div>
