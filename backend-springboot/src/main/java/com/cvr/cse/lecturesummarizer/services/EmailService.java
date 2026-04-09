@@ -11,6 +11,7 @@ public class EmailService {
     @Autowired
     private JavaMailSender mailSender;
 
+    @org.springframework.scheduling.annotation.Async
     public void sendVerificationCode(String toEmail, String code, String type) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(toEmail);

@@ -13,4 +13,4 @@ WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
 EXPOSE 8080
 # Use shell form to resolve environment variables
-ENTRYPOINT ["sh", "-c", "java -Dserver.port=${PORT} -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java -Xmx300m -XX:MaxRAMPercentage=75.0 -Dserver.port=${PORT} -jar app.jar"]
