@@ -12,8 +12,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/summaries")
-@CrossOrigin(origins = {"https://lecsumm.indevs.in", "https://lecsumm.vercel.app", "http://localhost:5173"}, 
-             allowCredentials = "true")
 public class SummaryController {
 
     @Autowired

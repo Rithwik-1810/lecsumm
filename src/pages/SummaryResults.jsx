@@ -74,23 +74,6 @@ const SummaryResults = () => {
         }
       };
       
-      try {
-        const data = await summaryService.getSummaryById(id);
-        if (isMounted.current) { 
-          setSummary(data); 
-          setLoading(false);
-          // Fetch lecture title
-          if (data.lectureId) {
-            try { const l = await lectureService.getLectureById(data.lectureId); setLecture(l); }
-            catch (err) { console.error(err); }
-          }
-        }
-        return;
-      } catch (err) {
-        if (err.response?.status !== 404) {
-          if (isMounted.current) { setError(err.message); setLoading(false); } return;
-        }
-      }
       poll();
     };
     fetchSummary();
