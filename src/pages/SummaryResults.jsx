@@ -68,8 +68,15 @@ const SummaryResults = () => {
           if (err.response?.status === 404 && isMounted.current) {
             pollingRef.current = setTimeout(poll, 3000);
           } else if (isMounted.current) { 
-            setError(err.message); 
-            setLoading(false); 
+            // Handle Render backend 502 restarts or CORS-masked network blips
+            const isTransient = err.message === 'Network Error' || err.response?.status === 502 || err.response?.status === 503;
+            if (isTransient) {
+              console.warn('Transient network/502 error during polling, retrying in 5 seconds...');
+              pollingRef.current = setTimeout(poll, 5000); // Wait longer for backend to recover
+            } else {
+              setError(err.message || 'An unexpected error occurred during processing.'); 
+              setLoading(false); 
+            }
           }
         }
       };
