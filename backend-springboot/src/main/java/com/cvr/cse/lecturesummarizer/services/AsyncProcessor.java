@@ -36,8 +36,9 @@ public class AsyncProcessor {
     @Autowired
     private AIService aiService;
 
+    @org.springframework.scheduling.annotation.Async
     public void processLecture(Lecture lecture, String filePath) {
-        System.out.println(">>> ASYNC PROCESSOR CALLED (SYNC TEST) for lecture: " + lecture.getId());
+        System.out.println(">>> ASYNC PROCESSOR CALLED for lecture: " + lecture.getId());
         logger.info(">>> ASYNC PROCESSOR CALLED (SYNC TEST) for lecture: {}", lecture.getId());
 
         try {
