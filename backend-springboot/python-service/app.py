@@ -241,11 +241,22 @@ def process_lecture():
         try:
             # 1. Prepare audio content for Gemini
             audio_content = None
-            import mimetypes
-            mimetypes.init()
-            mimetypes.add_type('audio/mp4', '.m4a')
-            guessed_type, _ = mimetypes.guess_type(filename)
-            mime_type = guessed_type if guessed_type or not filename.endswith('.m4a') else 'audio/mp4'
+            
+            # Explicit MIME type map — never let mimetypes guess wrong for audio files
+            AUDIO_MIME_MAP = {
+                '.m4a': 'audio/mp4',
+                '.mp3': 'audio/mpeg',
+                '.wav': 'audio/wav',
+                '.ogg': 'audio/ogg',
+                '.flac': 'audio/flac',
+                '.aac': 'audio/aac',
+                '.mp4': 'video/mp4',
+                '.avi': 'video/x-msvideo',
+                '.mov': 'video/quicktime',
+            }
+            ext = os.path.splitext(filename)[1].lower()
+            mime_type = AUDIO_MIME_MAP.get(ext, 'audio/mpeg')
+            logger.info(f"Resolved MIME type for '{ext}': {mime_type}")
             
             if file_size < 20 * 1024 * 1024:
                 logger.info(f"Using direct bytes for small file optimization ({mime_type})")
