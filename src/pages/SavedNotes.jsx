@@ -120,7 +120,7 @@ const SavedNotes = () => {
                       {/* Accent strip */}
                       <div className={`h-1 w-full bg-gradient-to-r ${colorSet.accent} opacity-60 group-hover:opacity-100 transition-opacity duration-500`} />
                       
-                      <Link to={`/summary/${s.id}`} className="p-6 flex flex-col h-full relative z-10">
+                      <Link to={`/summary/${s.lectureId || s.id}`} className="p-6 flex flex-col h-full relative z-10">
                         <div className="flex items-start justify-between mb-4 gap-4">
                           <h3 className="text-sm font-bold text-slate-800 dark:text-white/90 line-clamp-2 group-hover:text-accent-400 transition-colors flex-1 tracking-wide leading-relaxed">{s.lectureTitle}</h3>
                           <div className={`w-9 h-9 rounded-xl ${colorSet.iconBg} border flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300`}>
@@ -154,7 +154,7 @@ const SavedNotes = () => {
                     <motion.div key={s.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                       className="group hover:bg-slate-100 dark:hover:bg-white/[0.03] transition-colors relative"
                     >
-                      <Link to={`/summary/${s.id}`} className="flex flex-col sm:flex-row sm:items-center gap-4 px-6 py-5">
+                      <Link to={`/summary/${s.lectureId || s.id}`} className="flex flex-col sm:flex-row sm:items-center gap-4 px-6 py-5">
                         {/* Accent bar */}
                         <div className={`absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-gradient-to-b ${colorSet.accent} opacity-0 group-hover:opacity-100 transition-opacity duration-300`} />
                         

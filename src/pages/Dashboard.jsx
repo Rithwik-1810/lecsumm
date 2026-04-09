@@ -132,7 +132,7 @@ const Dashboard = () => {
               ) : (
                 <div className="divide-y divide-white/5">
                   {recentSummaries.map((s) => (
-                    <Link key={s.id} to={`/summary/${s.id}`}
+                    <Link key={s.id} to={`/summary/${s.lectureId || s.id}`}
                       className="flex items-start gap-4 px-6 py-4 hover:bg-slate-100 dark:bg-white/5 transition-colors group"
                     >
                       <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 bg-brand-500/10 border border-brand-500/20 group-hover:scale-110 transition-transform">

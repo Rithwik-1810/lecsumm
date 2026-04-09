@@ -38,7 +38,7 @@ const RecentSummaries = () => {
           {summaries.map((summary) => (
             <Link
               key={summary.id}
-              to={`/summary/${summary.id}`}
+              to={`/summary/${summary.lectureId || summary.id}`}
               className="block px-6 py-4 hover:bg-gray-50 transition"
             >
               <p className="text-sm font-medium text-gray-900 line-clamp-1">
