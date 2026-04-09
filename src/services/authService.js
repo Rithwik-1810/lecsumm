@@ -52,7 +52,13 @@ export const authService = {
       return response.data; // this must include the updated stats
     } catch (error) {
       console.error('Failed to get current user', error);
-      return null;
+      // Only return null (sign out) if the server explicitly rejects the token
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        localStorage.removeItem('token');
+        return null;
+      }
+      // For network blips, 500 errors, or cold starts, throw to prevent wiping the user state
+      throw error;
     }
   }
 };

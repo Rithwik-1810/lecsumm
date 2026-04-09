@@ -9,9 +9,14 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const initAuth = async () => {
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
-      setLoading(false);
+      try {
+        const currentUser = await authService.getCurrentUser();
+        setUser(currentUser);
+      } catch (error) {
+        console.error('Initial auth check failed (Server waking up or network error)', error);
+      } finally {
+        setLoading(false);
+      }
     };
     initAuth();
   }, []);
