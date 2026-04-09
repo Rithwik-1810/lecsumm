@@ -14,6 +14,7 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
   const { login, register, googleLogin, sendSignupOtp, sendForgotPasswordOtp, resetPassword } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [slowRequest, setSlowRequest] = useState(false);
   const [currentView, setCurrentView] = useState(mode);
   const [formData, setFormData] = useState({
     name: '',
@@ -42,23 +43,36 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
     resetForm();
   };
 
+  // Shows a "Server waking up" banner if request takes > 4 seconds (Render free tier cold start)
+  const withSlowWarning = async (fn) => {
+    const timer = setTimeout(() => setSlowRequest(true), 4000);
+    try {
+      await fn();
+    } finally {
+      clearTimeout(timer);
+      setSlowRequest(false);
+    }
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const result = await login(formData.email, formData.password);
-      if (result.success) {
-        onClose();
-        toast.success('System Connected. Welcome back.');
-        navigate('/dashboard');
-      } else {
-        toast.error('Account not found or invalid credentials.');
+    await withSlowWarning(async () => {
+      try {
+        const result = await login(formData.email, formData.password);
+        if (result.success) {
+          onClose();
+          toast.success('System Connected. Welcome back.');
+          navigate('/dashboard');
+        } else {
+          toast.error('Account not found or invalid credentials.');
+        }
+      } catch {
+        toast.error('Authentication Error. Connection Severed.');
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      toast.error('Authentication Error. Connection Severed.');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleSignup = async (e) => {
@@ -68,19 +82,21 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
       return;
     }
     setLoading(true);
-    try {
-      const result = await sendSignupOtp(formData.email);
-      if (result.success) {
-        toast.success('Verification code sent to your email.');
-        setCurrentView('verify_signup');
-      } else {
-        toast.error(result.error || 'Failed to send verification code.');
+    await withSlowWarning(async () => {
+      try {
+        const result = await sendSignupOtp(formData.email);
+        if (result.success) {
+          toast.success('Verification code sent to your email.');
+          setCurrentView('verify_signup');
+        } else {
+          toast.error(result.error || 'Failed to send verification code.');
+        }
+      } catch {
+        toast.error('Connection error.');
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      toast.error('Connection error.');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleVerifySignup = async (e) => {
@@ -107,19 +123,21 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
   const handleForgotPassword = async (e) => {
     e.preventDefault();
     setLoading(true);
-    try {
-      const result = await sendForgotPasswordOtp(formData.email);
-      if (result.success) {
-        toast.success('Reset code sent to your email.');
-        setCurrentView('reset_password');
-      } else {
-        toast.error(result.error || 'Failed to send reset code.');
+    await withSlowWarning(async () => {
+      try {
+        const result = await sendForgotPasswordOtp(formData.email);
+        if (result.success) {
+          toast.success('Reset code sent to your email.');
+          setCurrentView('reset_password');
+        } else {
+          toast.error(result.error || 'Failed to send reset code.');
+        }
+      } catch {
+        toast.error('Connection error.');
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      toast.error('Connection error.');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const handleResetPassword = async (e) => {
@@ -220,6 +238,18 @@ const AuthModal = ({ isOpen, onClose, mode, onSwitchMode }) => {
                   </div>
                 )}
 
+                {slowRequest && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 dark:text-amber-400 text-xs font-medium"
+                  >
+                    <span className="relative flex h-2 w-2 flex-shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
+                    </span>
+                    Server is waking up from sleep — this may take 30 seconds on first use.
+                  </motion.div>
+                )}
                 <div className="pt-2">
                   <Button type="submit" disabled={loading} className="w-full text-base py-3 stripe-gradient-bg shadow-glow-brand rounded-full text-slate-900 dark:text-white font-semibold flex items-center justify-center gap-2 hover:scale-[1.02] transition-all">
                     {loading ? <span className="animate-pulse">Processing...</span> : currentView === 'login' ? 'Sign In' : 'Continue'}
