@@ -355,7 +355,7 @@ const MySummaries = () => {
                   )}
 
                   <div 
-                    onClick={() => navigate(`/summary/${featured.id}`)}
+                    onClick={() => navigate(`/summary/${featured.lectureId || featured.id}`)}
                     className="block cursor-pointer"
                   >
                     <div className={`relative bg-slate-50 dark:bg-[#0E0F14] rounded-2xl border border-slate-200 dark:border-white/[0.06] overflow-hidden transition-all duration-500 hover:border-brand-500/30 group-hover:shadow-[0_0_50px_rgba(6,182,212,0.1)] ${selectedSummaries.includes(featured.id) ? 'ring-2 ring-brand-500/50 border-brand-500/50' : ''}`}>
@@ -459,7 +459,7 @@ const MySummaries = () => {
                             </div>
                           )}
                           <div 
-                            onClick={() => navigate(`/summary/${s.id}`)}
+                            onClick={() => navigate(`/summary/${s.lectureId || s.id}`)}
                             className={`relative bg-slate-50 dark:bg-[#0E0F14]/80 backdrop-blur-sm rounded-2xl border border-slate-200 dark:border-white/[0.05] overflow-hidden transition-all duration-500 cursor-pointer ${accent.border} ${accent.shadow} ${selectedSummaries.includes(s.id) ? 'ring-2 ring-brand-500/40 border-brand-500/30' : ''}`}
                           >
                             {/* Left accent bar */}
@@ -538,7 +538,7 @@ const MySummaries = () => {
                                   <TrashIcon className="w-4 h-4" />
                                 </button>
                                 <button
-                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/summary/${s.id}`); }}
+                                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/summary/${s.lectureId || s.id}`); }}
                                   className="p-2 rounded-lg text-slate-400 dark:text-white/30 hover:text-brand-400 transition-all duration-200"
                                 >
                                   <ChevronRightIcon className="w-4 h-4" />
