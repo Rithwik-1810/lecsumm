@@ -133,7 +133,11 @@ public class AsyncProcessor {
                     lecture.setFailReason("AI Service Error: " + e.getStatusCode());
                 }
             } catch (Exception parseEx) {
-                lecture.setFailReason("Communication Error: " + e.getStatusCode());
+                if (errorBody != null && errorBody.contains("<!DOCTYPE html>")) {
+                    lecture.setFailReason("AI Server (Hugging Face) is sleeping or failed to start. Please wait a minute or check your Hugging Face space status.");
+                } else {
+                    lecture.setFailReason("Communication Error: " + e.getStatusCode());
+                }
             }
             lecture.setUpdatedAt(java.time.LocalDateTime.now());
             lectureRepository.save(lecture);
