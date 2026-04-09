@@ -95,8 +95,16 @@ def is_quota_error(e):
     return "quota" in err_msg or "429" in err_msg or "resource has been exhausted" in err_msg
 
 # ─────────────────────────────────────────────────────
-# GROQ FALLBACK FUNCTIONS
+# GLOBAL ERROR HANDLER
 # ─────────────────────────────────────────────────────
+@app.errorhandler(Exception)
+def handle_exception(e):
+    logger.exception("Global exception caught: %s", str(e))
+    return jsonify({
+        "error": "AI_INTERNAL_ERROR",
+        "message": str(e)
+    }), 500
+
 def groq_transcribe(filepath):
     """Transcribe audio using Groq Whisper Large v3 Turbo."""
     if not groq_client:
@@ -239,20 +247,35 @@ def process_lecture():
         # ───────────────────────────────────────────
         gemini_failed = False
         try:
-            # 1. Prepare audio content via Gemini File API
             audio_content = None
             
-            # Simple MIME hint for Gemini (improves processing speed)
-            MIME_MAP = {'.m4a': 'audio/mp4', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.mp4': 'video/mp4'}
+            # Explicit MIME map for Gemini compatibility
+            MIME_MAP = {
+                '.m4a': 'audio/mp4', 
+                '.mp3': 'audio/mp3', # Using audio/mp3 instead of mpeg for better Gemini compatibility
+                '.wav': 'audio/wav',
+                '.ogg': 'audio/ogg',
+                '.flac': 'audio/flac',
+                '.mp4': 'video/mp4',
+                '.mov': 'video/quicktime'
+            }
             ext = os.path.splitext(filename)[1].lower()
-            mime_type = MIME_MAP.get(ext, 'audio/mpeg')
+            mime_type = MIME_MAP.get(ext, 'audio/mp3')
 
-            logger.info(f"Uploading to Gemini File API: {filename} ({mime_type})")
-            g_file = genai.upload_file(path=filepath, display_name=filename, mime_type=mime_type)
-            gemini_files.append(g_file)
-            wait_for_files_active([g_file])
-            audio_content = g_file
-            logger.info(f"Gemini File API ready: {g_file.uri}")
+            if file_size < 20 * 1024 * 1024: # 20MB (Gemini inline limit)
+                logger.info(f"Using direct inline bytes for speed ({mime_type})")
+                with open(filepath, "rb") as f:
+                    audio_content = {
+                        "mime_type": mime_type, 
+                        "data": f.read()
+                    }
+            else:
+                logger.info(f"File > 20MB. Uploading to Gemini File API: {filename} ({mime_type})")
+                g_file = genai.upload_file(path=filepath, display_name=filename, mime_type=mime_type)
+                gemini_files.append(g_file)
+                wait_for_files_active([g_file])
+                audio_content = g_file
+                logger.info(f"Gemini File API ready: {g_file.uri}")
 
             # Safety configuration
             safety_settings = {
@@ -304,6 +327,7 @@ def process_lecture():
                 transcript = stt_fallback.transcribe(filepath, language[:2]) or "Summary generated successfully, but the full transcript was unavailable."
 
         except Exception as gemini_err:
+            logger.exception("Gemini processing failed: %s", str(gemini_err))
             if is_quota_error(gemini_err) and groq_client:
                 logger.warning(f"⚠️ Gemini quota exhausted: {gemini_err}")
                 logger.info("🔄 Switching to Groq fallback...")
